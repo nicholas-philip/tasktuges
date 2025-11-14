@@ -1,10 +1,31 @@
-// ================== store/authStore.js (RESEND VERIFICATION FIXED) ==================
+// ================== store/authStore.js (WITH TIMEOUT FIX) ==================
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   "https://react-native-app-mlpl.onrender.com/api";
+
+// ✅ HELPER: Fetch with timeout
+const fetchWithTimeout = async (url, options = {}, timeout = 60000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    if (error.name === "AbortError") {
+      throw new Error("Request timeout - server took too long to respond");
+    }
+    throw error;
+  }
+};
 
 export const useAuthStore = create((set, get) => ({
   user: null,
@@ -32,12 +53,17 @@ export const useAuthStore = create((set, get) => ({
 
       console.log("🔗 Registering user:", username);
       console.log("📍 API URL:", API_URL);
+      console.log("📍 Full URL:", `${API_URL}/auth/register`);
 
-      const response = await fetch(`${API_URL}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, password }),
-      });
+      const response = await fetchWithTimeout(
+        `${API_URL}/auth/register`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, email, password }),
+        },
+        60000 // 60 second timeout
+      );
 
       console.log("📊 Response status:", response.status);
 
@@ -54,7 +80,7 @@ export const useAuthStore = create((set, get) => ({
         throw new Error("Missing user or token in response");
       }
 
-      // ✅ Save to AsyncStorage (including account)
+      // ✅ Save to AsyncStorage
       await AsyncStorage.multiSet([
         ["user", JSON.stringify(data.user)],
         ["account", JSON.stringify(data.account || {})],
@@ -73,9 +99,6 @@ export const useAuthStore = create((set, get) => ({
       });
 
       console.log("✅ Registration successful:", data.user.email);
-      console.log("✅ Account status:", data.account?.status);
-      console.log("📧 Email verification code sent - check inbox");
-
       return {
         success: true,
         user: {
@@ -101,13 +124,17 @@ export const useAuthStore = create((set, get) => ({
 
       console.log("🔗 Verifying email:", email);
       console.log("🔐 Code:", code);
-      console.log("📍 API URL:", API_URL);
+      console.log("📍 Full URL:", `${API_URL}/auth/verify-email`);
 
-      const response = await fetch(`${API_URL}/auth/verify-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
-      });
+      const response = await fetchWithTimeout(
+        `${API_URL}/auth/verify-email`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, code }),
+        },
+        60000
+      );
 
       console.log("📊 Response status:", response.status);
 
@@ -118,7 +145,6 @@ export const useAuthStore = create((set, get) => ({
         throw new Error(data?.message || "Email verification failed");
       }
 
-      // ✅ Update user in store with emailVerified: true
       const currentUser = get().user;
       const updatedUser = {
         ...currentUser,
@@ -134,8 +160,6 @@ export const useAuthStore = create((set, get) => ({
       });
 
       console.log("✅ Email verified successfully!");
-      console.log("✅ User emailVerified:", updatedUser.emailVerified);
-
       return {
         success: true,
         user: updatedUser,
@@ -148,62 +172,92 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  // ✅ RESEND VERIFICATION CODE - SIMPLIFIED WITHOUT ABORT CONTROLLER
+  // ✅ RESEND VERIFICATION CODE - WITH BETTER ERROR HANDLING
   resendVerificationCode: async (email) => {
     set({ isLoading: true, error: null });
+
+    const startTime = Date.now();
+    console.log("⏱️ [RESEND] Request started at:", new Date().toISOString());
+
     try {
       if (!email) {
         throw new Error("Email is required");
       }
 
-      console.log("🔗 Resending verification code to:", email);
-      console.log("📍 API URL:", API_URL);
-      console.log("📍 Full endpoint:", `${API_URL}/auth/resend-verification`);
+      console.log("🔄 [RESEND] Resending code to:", email);
+      console.log("📍 [RESEND] API URL:", API_URL);
+      console.log(
+        "📍 [RESEND] Full endpoint:",
+        `${API_URL}/auth/resend-verification`
+      );
 
       const requestBody = { email };
-      console.log("📤 Request body:", JSON.stringify(requestBody));
+      console.log("📤 [RESEND] Request body:", JSON.stringify(requestBody));
 
-      const response = await fetch(`${API_URL}/auth/resend-verification`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // ✅ Use fetch with timeout
+      const response = await fetchWithTimeout(
+        `${API_URL}/auth/resend-verification`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
         },
-        body: JSON.stringify(requestBody),
-      });
+        60000 // 60 second timeout
+      );
 
-      console.log("📊 Response received");
-      console.log("📊 Response status:", response.status);
-      console.log("📊 Response ok:", response.ok);
+      const duration = Date.now() - startTime;
+      console.log(`⏱️ [RESEND] Request completed in ${duration}ms`);
+      console.log("📊 [RESEND] Response status:", response.status);
+      console.log("📊 [RESEND] Response ok:", response.ok);
 
       let data;
       try {
-        data = await response.json();
-        console.log("📦 Response data:", JSON.stringify(data));
+        const responseText = await response.text();
+        console.log("📝 [RESEND] Raw response:", responseText);
+        data = JSON.parse(responseText);
+        console.log("📦 [RESEND] Parsed data:", JSON.stringify(data));
       } catch (parseError) {
-        console.error("⚠️ Failed to parse response as JSON");
-        console.log("📝 Parse error:", parseError.message);
-        data = { message: "Invalid response from server" };
+        console.error("⚠️ [RESEND] JSON parse error:", parseError.message);
+        throw new Error("Invalid response from server");
       }
 
       if (!response.ok) {
-        const errorMsg = data?.message || `HTTP ${response.status}`;
-        console.error("❌ API Error:", errorMsg);
+        const errorMsg = data?.message || `Server error: ${response.status}`;
+        console.error("❌ [RESEND] API Error:", errorMsg);
         throw new Error(errorMsg);
       }
 
       set({ isLoading: false, error: null });
 
-      console.log("✅ Verification code resent successfully to:", email);
+      console.log("✅ [RESEND] Success! Code resent to:", email);
 
       return {
         success: true,
-        message: "Verification code resent successfully",
+        message: data?.message || "Verification code resent successfully",
       };
     } catch (error) {
-      const message = error?.message || "Failed to resend verification code";
-      set({ isLoading: false, error: message });
-      console.error("❌ Resend error:", message);
-      return { success: false, message };
+      const duration = Date.now() - startTime;
+      console.error(`❌ [RESEND] Failed after ${duration}ms`);
+      console.error("❌ [RESEND] Error type:", error.name);
+      console.error("❌ [RESEND] Error message:", error.message);
+
+      let userMessage = "Failed to resend verification code";
+
+      // Provide specific error messages
+      if (error.message.includes("timeout")) {
+        userMessage = "Request timeout. Server is slow. Please try again.";
+      } else if (error.message.includes("Network request failed")) {
+        userMessage = "Network error. Check your internet connection.";
+      } else if (error.message.includes("Invalid response")) {
+        userMessage = "Server error. Please try again later.";
+      } else {
+        userMessage = error.message;
+      }
+
+      set({ isLoading: false, error: userMessage });
+      return { success: false, message: userMessage };
     }
   },
 
@@ -216,13 +270,17 @@ export const useAuthStore = create((set, get) => ({
       }
 
       console.log("🔗 Logging in user:", email);
-      console.log("📍 API URL:", API_URL);
+      console.log("📍 Full URL:", `${API_URL}/auth/login`);
 
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await fetchWithTimeout(
+        `${API_URL}/auth/login`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        },
+        60000
+      );
 
       console.log("📊 Response status:", response.status);
 
@@ -237,7 +295,6 @@ export const useAuthStore = create((set, get) => ({
         throw new Error("Missing user or token in response");
       }
 
-      // ✅ Save to AsyncStorage (including account)
       await AsyncStorage.multiSet([
         ["user", JSON.stringify(data.user)],
         ["account", JSON.stringify(data.account || {})],
@@ -256,10 +313,6 @@ export const useAuthStore = create((set, get) => ({
       });
 
       console.log("✅ Login successful:", data.user.email);
-      console.log("✅ Email verified:", data.user.emailVerified);
-      console.log("✅ Profile completed:", data.user.profileCompleted);
-      console.log("✅ Account status:", data.account?.status);
-
       return {
         success: true,
         user: {
@@ -281,85 +334,34 @@ export const useAuthStore = create((set, get) => ({
     try {
       console.log("🔍 [checkAuth] Starting auth check...");
 
-      const allKeys = await AsyncStorage.getAllKeys();
-      console.log("📦 [checkAuth] All stored keys:", allKeys);
-
       const [userJson, accountJson, token] = await AsyncStorage.multiGet([
         "user",
         "account",
         "token",
       ]);
 
-      console.log("📊 [checkAuth] Raw storage data:");
-      console.log("   - userJson[0]:", userJson[0]);
-      console.log("   - userJson[1] exists:", !!userJson[1]);
-      console.log("   - accountJson[0]:", accountJson[0]);
-      console.log("   - accountJson[1] exists:", !!accountJson[1]);
-      console.log("   - token[0]:", token[0]);
-      console.log("   - token[1] exists:", !!token[1]);
-
       let user = null;
       let account = null;
 
       if (userJson[1]) {
-        try {
-          user = JSON.parse(userJson[1]);
-          console.log("✅ [checkAuth] User parsed successfully:", user.email);
-          console.log("   - profileCompleted:", user.profileCompleted);
-          console.log("   - emailVerified:", user.emailVerified);
-        } catch (e) {
-          console.error("❌ [checkAuth] Error parsing user data:", e.message);
-          throw new Error("Invalid user data stored");
-        }
-      } else {
-        console.log("⚠️ [checkAuth] No user data found in storage");
+        user = JSON.parse(userJson[1]);
+        console.log("✅ [checkAuth] User found:", user.email);
       }
 
       if (accountJson[1]) {
-        try {
-          account = JSON.parse(accountJson[1]);
-          console.log("✅ [checkAuth] Account parsed successfully");
-          console.log("   - status:", account?.status);
-          console.log("   - accountNumber:", account?.accountNumber);
-        } catch (e) {
-          console.error(
-            "⚠️ [checkAuth] Error parsing account data:",
-            e.message
-          );
-        }
-      } else {
-        console.log("⚠️ [checkAuth] No account data found in storage");
+        account = JSON.parse(accountJson[1]);
+        console.log("✅ [checkAuth] Account found:", account?.accountNumber);
       }
 
       if (user && token[1]) {
-        console.log("✅ [checkAuth] User and token found - setting state");
         set({
-          user: {
-            ...user,
-            account,
-          },
+          user: { ...user, account },
           account,
           token: token[1],
           isLoading: false,
         });
-        console.log("✅ [checkAuth] Auth state set successfully");
-        console.log("📊 [checkAuth] Final auth state:");
-        console.log("   - user:", user.email);
-        console.log("   - profileCompleted:", user.profileCompleted);
-        console.log("   - emailVerified:", user.emailVerified);
-        console.log("   - account.status:", account?.status);
-
-        return {
-          success: true,
-          user: {
-            ...user,
-            account,
-          },
-        };
+        return { success: true, user: { ...user, account } };
       } else {
-        console.log("❌ [checkAuth] User or token missing - clearing auth");
-        console.log("   - user exists:", !!user);
-        console.log("   - token exists:", !!token[1]);
         set({ user: null, account: null, token: null, isLoading: false });
         return { success: false };
       }
@@ -374,18 +376,10 @@ export const useAuthStore = create((set, get) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
-      console.log("🚀 [LOGOUT] Starting hard reset...");
-
-      // Get all keys first
+      console.log("🚀 [LOGOUT] Starting logout...");
       const allKeys = await AsyncStorage.getAllKeys();
-      console.log("📦 [LOGOUT] Removing keys:", allKeys);
-
-      // Remove all keys
       await AsyncStorage.multiRemove(allKeys);
 
-      console.log("✅ [LOGOUT] All data cleared from storage");
-
-      // Reset state
       set({
         user: null,
         account: null,
@@ -394,7 +388,7 @@ export const useAuthStore = create((set, get) => ({
         error: null,
       });
 
-      console.log("✅ [LOGOUT] Auth state reset");
+      console.log("✅ [LOGOUT] Logout successful");
       return { success: true };
     } catch (error) {
       console.error("❌ [LOGOUT] Error:", error.message);
@@ -403,46 +397,33 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  // ✅ Update user profile
+  // Update user profile
   updateUserProfile: async (updates) => {
     try {
       const user = get().user;
-      if (!user) {
-        throw new Error("Not authenticated");
-      }
+      if (!user) throw new Error("Not authenticated");
 
       const updatedUser = { ...user, ...updates };
-
       await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
       set({ user: updatedUser });
 
-      console.log("✅ User profile updated");
       return { success: true, user: updatedUser };
     } catch (error) {
-      console.error("❌ Profile update error:", error.message);
       return { success: false, message: error.message };
     }
   },
 
-  // ✅ Update account data
+  // Update account data
   updateAccount: async (accountData) => {
     try {
       const account = { ...get().account, ...accountData };
       const user = get().user;
 
       await AsyncStorage.setItem("account", JSON.stringify(account));
-      set({
-        account,
-        user: {
-          ...user,
-          account,
-        },
-      });
+      set({ account, user: { ...user, account } });
 
-      console.log("✅ Account data updated");
       return { success: true, account };
     } catch (error) {
-      console.error("❌ Account update error:", error.message);
       return { success: false, message: error.message };
     }
   },
@@ -470,10 +451,7 @@ export const useAuthStore = create((set, get) => ({
         const account = accountJson[1] ? JSON.parse(accountJson[1]) : null;
 
         set({
-          user: {
-            ...user,
-            account,
-          },
+          user: { ...user, account },
           account,
           token: token[1],
         });

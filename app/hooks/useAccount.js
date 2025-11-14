@@ -4,13 +4,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "./useApi";
 
 // Get user's account details
-export function useGetAccount() {
-  return useQuery({
-    queryKey: ["account"],
-    queryFn: () => apiFetch("/accounts/getUserAccount"),
-    retry: 2,
-  });
-}
+// export function useGetAccount() {
+//   return useQuery({
+//     queryKey: ["account"],
+//     queryFn: () => apiFetch("/accounts/details"),
+//     retry: 2,
+//   });
+// }
 
 // Check if account is setup
 export function useCheckAccount() {
@@ -87,7 +87,7 @@ export function useUpdateAccountStatus() {
 }
 
 export default {
-  useGetAccount,
+  // useGetAccount,
   useCheckAccount,
   useSetupAccount,
   useUpdateAccount,

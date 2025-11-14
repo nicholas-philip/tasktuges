@@ -41,13 +41,13 @@ export default function TabLayout() {
         }}
       />
 
-      {/* About tab */}
+      {/* Profile tab */}
       <Tabs.Screen
-        name="about"
+        name="profile"
         options={{
-          title: "About",
+          title: "Profile",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="information-circle" size={24} color={color} />
+            <Ionicons name="person-outline" size={22} color="black" />
           ),
         }}
       />
@@ -74,13 +74,6 @@ export default function TabLayout() {
         options={{
           href: null,
           title: "payment",
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          href: null,
-          title: "profile",
         }}
       />
     </Tabs>

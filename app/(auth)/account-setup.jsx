@@ -23,6 +23,7 @@ import {
 } from "lucide-react-native";
 import { useSetupAccount } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
+import SafeScreen from "../../components/SafeScreen";
 
 export default function AccountSetup() {
   const router = useRouter();
@@ -542,115 +543,123 @@ export default function AccountSetup() {
   ];
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-gray-50"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 20 }}>
-        {/* Header */}
-        <View className="items-center mb-8 mt-6">
-          <Text className="text-3xl font-bold text-gray-800 mb-2 text-center">
-            Complete Your Account Setup
-          </Text>
-          <Text className="text-gray-600 text-center">
-            Fill in your details to activate your account
-          </Text>
-        </View>
-
-        {/* Progress Steps */}
-        <View className="flex-row justify-between mb-6 px-2">
-          {steps.map((step) => (
-            <View key={step.number} className="flex-1 items-center">
-              <View
-                className={`w-12 h-12 rounded-full items-center justify-center mb-2 ${
-                  currentStep >= step.number ? "bg-blue-600" : "bg-gray-300"
-                }`}
-              >
-                <step.icon
-                  size={20}
-                  color={currentStep >= step.number ? "#FFFFFF" : "#6B7280"}
-                />
-              </View>
-              <Text
-                className={`text-xs font-medium text-center ${
-                  currentStep >= step.number ? "text-blue-600" : "text-gray-500"
-                }`}
-              >
-                {step.title}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        <Text className="text-center text-sm text-gray-500 mb-6">
-          Step {currentStep} of 4
-        </Text>
-
-        {/* Error Message */}
-        {error ? (
-          <View className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <Text className="text-red-700 text-sm">{error}</Text>
-          </View>
-        ) : null}
-
-        {/* Form Steps */}
-        <View className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-          {currentStep === 1 && renderStep1()}
-          {currentStep === 2 && renderStep2()}
-          {currentStep === 3 && renderStep3()}
-          {currentStep === 4 && renderStep4()}
-        </View>
-
-        {/* Navigation Buttons */}
-        <View className="flex-row justify-between gap-4 mb-8">
-          <TouchableOpacity
-            className={`flex-1 flex-row items-center justify-center px-6 py-4 rounded-lg ${
-              currentStep === 1 || loading ? "bg-gray-200" : "bg-gray-300"
-            }`}
-            onPress={handleBack}
-            disabled={currentStep === 1 || loading}
-          >
-            <ArrowLeft
-              size={20}
-              color={currentStep === 1 || loading ? "#9CA3AF" : "#374151"}
-            />
-            <Text
-              className={`ml-2 font-semibold ${
-                currentStep === 1 || loading ? "text-gray-400" : "text-gray-700"
-              }`}
-            >
-              Back
+    <SafeScreen>
+      <KeyboardAvoidingView
+        className="flex-1 bg-gray-50"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView className="flex-1" contentContainerStyle={{ padding: 20 }}>
+          {/* Header */}
+          <View className="items-center mb-8 mt-6">
+            <Text className="text-3xl font-bold text-gray-800 mb-2 text-center">
+              Complete Your Account Setup
             </Text>
-          </TouchableOpacity>
+            <Text className="text-gray-600 text-center">
+              Fill in your details to activate your account
+            </Text>
+          </View>
 
-          {currentStep < 4 ? (
+          {/* Progress Steps */}
+          <View className="flex-row justify-between mb-6 px-2">
+            {steps.map((step) => (
+              <View key={step.number} className="flex-1 items-center">
+                <View
+                  className={`w-12 h-12 rounded-full items-center justify-center mb-2 ${
+                    currentStep >= step.number ? "bg-blue-600" : "bg-gray-300"
+                  }`}
+                >
+                  <step.icon
+                    size={20}
+                    color={currentStep >= step.number ? "#FFFFFF" : "#6B7280"}
+                  />
+                </View>
+                <Text
+                  className={`text-xs font-medium text-center ${
+                    currentStep >= step.number
+                      ? "text-blue-600"
+                      : "text-gray-500"
+                  }`}
+                >
+                  {step.title}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          <Text className="text-center text-sm text-gray-500 mb-6">
+            Step {currentStep} of 4
+          </Text>
+
+          {/* Error Message */}
+          {error ? (
+            <View className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <Text className="text-red-700 text-sm">{error}</Text>
+            </View>
+          ) : null}
+
+          {/* Form Steps */}
+          <View className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            {currentStep === 1 && renderStep1()}
+            {currentStep === 2 && renderStep2()}
+            {currentStep === 3 && renderStep3()}
+            {currentStep === 4 && renderStep4()}
+          </View>
+
+          {/* Navigation Buttons */}
+          <View className="flex-row justify-between gap-4 mb-8">
             <TouchableOpacity
-              className={`flex-1 flex-row items-center justify-center px-6 py-4 rounded-lg shadow-lg ${
-                loading ? "bg-gray-400" : "bg-blue-600"
+              className={`flex-1 flex-row items-center justify-center px-6 py-4 rounded-lg ${
+                currentStep === 1 || loading ? "bg-gray-200" : "bg-gray-300"
               }`}
-              onPress={handleNext}
-              disabled={loading}
+              onPress={handleBack}
+              disabled={currentStep === 1 || loading}
             >
-              <Text className="text-white font-semibold mr-2">Next</Text>
-              <ArrowRight size={20} color="#FFFFFF" />
+              <ArrowLeft
+                size={20}
+                color={currentStep === 1 || loading ? "#9CA3AF" : "#374151"}
+              />
+              <Text
+                className={`ml-2 font-semibold ${
+                  currentStep === 1 || loading
+                    ? "text-gray-400"
+                    : "text-gray-700"
+                }`}
+              >
+                Back
+              </Text>
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              className={`flex-1 items-center justify-center px-6 py-4 rounded-lg shadow-lg ${
-                loading ? "bg-gray-400" : "bg-green-600"
-              }`}
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text className="text-white font-semibold">Complete Setup</Text>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+            {currentStep < 4 ? (
+              <TouchableOpacity
+                className={`flex-1 flex-row items-center justify-center px-6 py-4 rounded-lg shadow-lg ${
+                  loading ? "bg-gray-400" : "bg-blue-600"
+                }`}
+                onPress={handleNext}
+                disabled={loading}
+              >
+                <Text className="text-white font-semibold mr-2">Next</Text>
+                <ArrowRight size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                className={`flex-1 items-center justify-center px-6 py-4 rounded-lg shadow-lg ${
+                  loading ? "bg-gray-400" : "bg-green-600"
+                }`}
+                onPress={handleSubmit}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text className="text-white font-semibold">
+                    Complete Setup
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeScreen>
   );
 }
