@@ -185,7 +185,7 @@ export default function Login() {
                   resizeMode="contain"
                 />
                 <Text className="text-4xl font-extrabold text-black tracking-wide">
-                  Tasktuges
+                  SkyPay
                 </Text>
               </View>
             </View>

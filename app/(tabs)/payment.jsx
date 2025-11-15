@@ -1,4 +1,4 @@
-// src/(tabs)/utils/payment.jsx
+// src/(tabs)/utils/payment.jsx - UPDATED WITH PAYSTACK
 import React, { useState, useRef } from "react";
 import {
   View,
@@ -11,16 +11,15 @@ import {
   Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { PaystackWebView } from "react-native-paystack-webview";
 
-import { useInitiatePayment } from "../hooks/usePayment";
+import { usePaystackInitialize, useInitiatePayment } from "../hooks/usePayment";
 import { useGetBalance } from "../hooks/useWallet";
 import { useGetAccountDetails } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
 
-// Predefined payment recipients - NO EMAIL
 const PAYMENT_RECIPIENTS = [
   {
     id: 1,
@@ -80,7 +79,6 @@ const PAYMENT_RECIPIENTS = [
   },
 ];
 
-// Payment methods
 const PAYMENT_METHODS = [
   { id: "card", label: "Debit Card", icon: "card", color: "bg-blue-500" },
   {
@@ -122,21 +120,53 @@ export default function PaymentScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [selectedNetwork, setSelectedNetwork] = useState(null);
   const [showPaystack, setShowPaystack] = useState(false);
-  const [paystackAmount, setPaystackAmount] = useState(0);
+  const [paystackReference, setPaystackReference] = useState(null);
 
   const { mutate: initiatePayment, isPending } = useInitiatePayment();
-  const { data: balanceData } = useGetBalance();
-  const { data: account } = useGetAccountDetails();
+  const { mutate: initializePaystack, isPending: isPaystackInitializing } =
+    usePaystackInitialize();
+  const { data: balanceData, refetch: refetchBalance } = useGetBalance();
+  const { data: account, refetch: refetchAccount } = useGetAccountDetails();
+
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      refetchBalance();
+      refetchAccount();
+      console.log("🔄 Payment screen refreshed");
+    }, [refetchBalance, refetchAccount])
+  );
+
+  // Clear form when screen loses focus (user leaves)
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => {
+        // This runs when screen loses focus
+        resetForm();
+        console.log("🗑️ Payment form cleared");
+      };
+    }, [])
+  );
 
   const balance = balanceData?.balance || 0;
+
   const isValidAmount =
-    amount &&
-    !isNaN(amount) &&
-    parseFloat(amount) > 0 &&
-    parseFloat(amount) <= balance;
+    amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0;
 
   const isValidRecipient =
-    selectedRecipient || (isCustomRecipient && customName);
+    selectedRecipient !== null || (isCustomRecipient && customName?.trim());
+
+  console.log("🔍 Payment Form State:", {
+    amount,
+    isValidAmount,
+    selectedRecipient: selectedRecipient?.name,
+    isCustomRecipient,
+    customName,
+    isValidRecipient,
+    agreedToTerms,
+    balance,
+    amountExceedsBalance: parseFloat(amount) > balance,
+  });
 
   const formatAmount = (val) => {
     return new Intl.NumberFormat("en-US", {
@@ -154,18 +184,43 @@ export default function PaymentScreen() {
       Alert.alert("Error", "Please select a network");
       return;
     }
-    setPaystackAmount(parseFloat(amount));
-    setShowPaystack(true);
+
+    // Initialize Paystack payment
+    initializePaystack(
+      {
+        amount: parseFloat(amount),
+        email: user?.email || `user_${user?.id}@tasktuges.app`,
+        phoneNumber: `+233${phoneNumber}`,
+        network: selectedNetwork,
+        recipient: isCustomRecipient ? customName : selectedRecipient.name,
+        description:
+          description ||
+          `Payment to ${isCustomRecipient ? customName : selectedRecipient.name}`,
+      },
+      {
+        onSuccess: (data) => {
+          setPaystackReference(data.reference);
+          setShowPaystack(true);
+        },
+        onError: (error) => {
+          Alert.alert(
+            "Error",
+            error?.message || "Failed to initialize payment"
+          );
+        },
+      }
+    );
   };
 
-  const handleMobileMoneySuccess = (res) => {
+  const handlePaystackSuccess = (res) => {
     const recipientName = isCustomRecipient
       ? customName
       : selectedRecipient.name;
 
+    // Verify payment with backend
     initiatePayment(
       {
-        amount: paystackAmount,
+        reference: paystackReference,
         phoneNumber: `+233${phoneNumber}`,
         network: selectedNetwork,
         paymentMethod: "mobile_money",
@@ -178,21 +233,12 @@ export default function PaymentScreen() {
         onSuccess: () => {
           Alert.alert(
             "Success",
-            `Payment of ${formatAmount(paystackAmount)} to ${recipientName} completed!`,
+            `Payment of ${formatAmount(amount)} to ${recipientName} completed!`,
             [
               {
                 text: "OK",
                 onPress: () => {
-                  setSelectedRecipient(null);
-                  setAmount("");
-                  setDescription("");
-                  setAgreedToTerms(false);
-                  setCustomName("");
-                  setIsCustomRecipient(false);
-                  setPhoneNumber("");
-                  setSelectedNetwork(null);
-                  setShowPaystack(false);
-                  setShowMobileMoneyModal(false);
+                  resetForm();
                   router.back();
                 },
               },
@@ -207,6 +253,20 @@ export default function PaymentScreen() {
     );
   };
 
+  const resetForm = () => {
+    setSelectedRecipient(null);
+    setAmount("");
+    setDescription("");
+    setAgreedToTerms(false);
+    setCustomName("");
+    setIsCustomRecipient(false);
+    setPhoneNumber("");
+    setSelectedNetwork(null);
+    setShowPaystack(false);
+    setPaystackReference(null);
+    setShowMobileMoneyModal(false);
+  };
+
   const handlePayment = () => {
     if (!isValidRecipient) {
       Alert.alert(
@@ -217,9 +277,14 @@ export default function PaymentScreen() {
     }
 
     if (!isValidAmount) {
+      Alert.alert("Invalid Amount", "Please enter a valid amount.");
+      return;
+    }
+
+    if (parseFloat(amount) > balance) {
       Alert.alert(
-        "Invalid Amount",
-        `Please enter a valid amount (Max: ${formatAmount(balance)})`
+        "Insufficient Balance",
+        `Your balance (${formatAmount(balance)}) is less than the payment amount.`
       );
       return;
     }
@@ -232,54 +297,40 @@ export default function PaymentScreen() {
       return;
     }
 
-    // If mobile money selected, show mobile money modal
+    // If mobile money, show mobile money modal
     if (selectedMethod === "mobile_money") {
       setShowMobileMoneyModal(true);
       return;
     }
 
-    // For wallet and card, process normally
+    // For wallet and card, use Paystack
     const recipientName = isCustomRecipient
       ? customName
       : selectedRecipient.name;
 
-    const paymentData = {
-      amount: parseFloat(amount),
-      paymentMethod: selectedMethod,
-      recipient: {
-        name: recipientName,
+    initializePaystack(
+      {
+        amount: parseFloat(amount),
+        email: user?.email || `user_${user?.id}@tasktuges.app`,
+        paymentMethod: selectedMethod,
+        recipient: {
+          name: recipientName,
+        },
+        description: description || `Payment to ${recipientName}`,
       },
-      description: description || `Payment to ${recipientName}`,
-    };
-
-    initiatePayment(paymentData, {
-      onSuccess: () => {
-        Alert.alert(
-          "Success",
-          `Payment of ${formatAmount(amount)} to ${recipientName} initiated!`,
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                setSelectedRecipient(null);
-                setAmount("");
-                setDescription("");
-                setAgreedToTerms(false);
-                setCustomName("");
-                setIsCustomRecipient(false);
-                router.back();
-              },
-            },
-          ]
-        );
-      },
-      onError: (error) => {
-        Alert.alert(
-          "Payment Failed",
-          error?.message || "An error occurred during payment."
-        );
-      },
-    });
+      {
+        onSuccess: (data) => {
+          setPaystackReference(data.reference);
+          setShowPaystack(true);
+        },
+        onError: (error) => {
+          Alert.alert(
+            "Error",
+            error?.message || "Failed to initialize payment"
+          );
+        },
+      }
+    );
   };
 
   const handleAmountChange = (text) => {
@@ -293,20 +344,24 @@ export default function PaymentScreen() {
     setShowRecipientModal(false);
   };
 
-  if (showPaystack) {
+  if (showPaystack && paystackReference) {
     return (
       <PaystackWebView
         paystackKey="pk_live_YOUR_PUBLIC_KEY_HERE"
-        amount={paystackAmount * 100}
+        amount={parseFloat(amount) * 100}
         billingEmail={user?.email || `user_${user?.id}@tasktuges.app`}
-        billingMobile={`+233${phoneNumber}`}
+        billingMobile={
+          selectedMethod === "mobile_money" ? `+233${phoneNumber}` : undefined
+        }
         billingName={user?.name || "User"}
-        channels={["mobile_money"]}
+        channels={
+          selectedMethod === "mobile_money" ? ["mobile_money"] : ["card"]
+        }
         onCancel={() => {
           Alert.alert("Cancelled", "Payment was cancelled");
           setShowPaystack(false);
         }}
-        onSuccess={handleMobileMoneySuccess}
+        onSuccess={handlePaystackSuccess}
         ref={paystackWebViewRef}
       />
     );
@@ -314,8 +369,7 @@ export default function PaymentScreen() {
 
   return (
     <SafeScreen>
-      <ScrollView className="flex-1 bg-gray-50">
-        {/* Header */}
+      <ScrollView className="flex-1 bg-gray-50 pt-8">
         <View className="flex-row items-center justify-between px-5 pt-4 pb-3">
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={28} color="#007AFF" />
@@ -324,7 +378,6 @@ export default function PaymentScreen() {
           <View className="w-7" />
         </View>
 
-        {/* Balance Info */}
         <View className="mx-5 mb-5 p-4 bg-blue-50 rounded-xl border border-blue-200">
           <Text className="text-xs text-blue-600 font-semibold mb-1">
             AVAILABLE BALANCE
@@ -334,7 +387,6 @@ export default function PaymentScreen() {
           </Text>
         </View>
 
-        {/* Selected Recipient Display */}
         {selectedRecipient && (
           <View className="mx-5 mb-6 p-4 bg-green-50 rounded-xl border-2 border-green-200">
             <View className="flex-row items-center justify-between">
@@ -369,7 +421,6 @@ export default function PaymentScreen() {
           </View>
         )}
 
-        {/* Quick Select Recipients */}
         {!selectedRecipient && !isCustomRecipient && (
           <View className="mx-5 mb-6">
             <Text className="text-sm font-semibold text-gray-700 mb-3">
@@ -411,7 +462,6 @@ export default function PaymentScreen() {
           </View>
         )}
 
-        {/* Recipients Modal */}
         <Modal
           visible={showRecipientModal}
           animationType="slide"
@@ -478,7 +528,6 @@ export default function PaymentScreen() {
           </View>
         </Modal>
 
-        {/* Custom Recipient Input */}
         {isCustomRecipient && (
           <View className="mx-5 mb-6 p-5 bg-white rounded-2xl border-2 border-gray-300">
             <Text className="text-sm font-semibold text-gray-700 mb-3">
@@ -518,7 +567,6 @@ export default function PaymentScreen() {
           </View>
         )}
 
-        {/* Amount Input */}
         <View className="mx-5 mb-6 p-5 bg-white rounded-2xl">
           <Text className="text-sm font-semibold text-gray-700 mb-3">
             Payment Amount
@@ -548,7 +596,6 @@ export default function PaymentScreen() {
           )}
         </View>
 
-        {/* Payment Method Selection */}
         <View className="mx-5 mb-6">
           <Text className="text-sm font-semibold text-gray-700 mb-3">
             Payment Method
@@ -590,7 +637,6 @@ export default function PaymentScreen() {
           </View>
         </View>
 
-        {/* Description */}
         <View className="mx-5 mb-6 p-5 bg-white rounded-2xl">
           <Text className="text-sm font-semibold text-gray-700 mb-3">
             Description (Optional)
@@ -606,7 +652,6 @@ export default function PaymentScreen() {
           />
         </View>
 
-        {/* Terms Checkbox */}
         <View className="mx-5 mb-6 flex-row items-start">
           <TouchableOpacity
             className={`w-5 h-5 rounded border-2 mr-3 mt-0.5 justify-center items-center ${
@@ -629,20 +674,27 @@ export default function PaymentScreen() {
           </Text>
         </View>
 
-        {/* Pay Button */}
         <View className="mx-5 mb-6">
           <TouchableOpacity
             className={`p-4 rounded-xl flex-row justify-center items-center ${
-              isValidAmount && isValidRecipient && agreedToTerms && !isPending
+              isValidAmount &&
+              isValidRecipient &&
+              agreedToTerms &&
+              !isPending &&
+              !isPaystackInitializing
                 ? "bg-green-500"
                 : "bg-gray-300"
             }`}
             onPress={handlePayment}
             disabled={
-              !isValidAmount || !isValidRecipient || !agreedToTerms || isPending
+              !isValidAmount ||
+              !isValidRecipient ||
+              !agreedToTerms ||
+              isPending ||
+              isPaystackInitializing
             }
           >
-            {isPending ? (
+            {isPending || isPaystackInitializing ? (
               <>
                 <ActivityIndicator
                   color="#fff"
@@ -669,7 +721,6 @@ export default function PaymentScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Mobile Money Modal */}
         <Modal
           visible={showMobileMoneyModal}
           animationType="slide"
@@ -741,16 +792,22 @@ export default function PaymentScreen() {
 
                 <TouchableOpacity
                   className={`p-4 rounded-xl items-center ${
-                    phoneNumber.length === 9 && selectedNetwork && !isPending
+                    phoneNumber.length === 9 &&
+                    selectedNetwork &&
+                    !isPending &&
+                    !isPaystackInitializing
                       ? "bg-blue-600"
                       : "bg-gray-300"
                   }`}
                   onPress={handleMobileMoneyInitiate}
                   disabled={
-                    phoneNumber.length !== 9 || !selectedNetwork || isPending
+                    phoneNumber.length !== 9 ||
+                    !selectedNetwork ||
+                    isPending ||
+                    isPaystackInitializing
                   }
                 >
-                  {isPending ? (
+                  {isPending || isPaystackInitializing ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <Text className="text-white font-bold text-lg">
@@ -772,7 +829,6 @@ export default function PaymentScreen() {
           </View>
         </Modal>
 
-        {/* Info Section */}
         <View className="mx-5 mb-10 p-4 bg-blue-50 rounded-xl border border-blue-200">
           <View className="flex-row">
             <Ionicons
@@ -786,7 +842,7 @@ export default function PaymentScreen() {
                 Secure Payment
               </Text>
               <Text className="text-xs text-blue-700 mt-1">
-                Your payment is protected with end-to-end encryption.
+                Your payment is protected with Paystack end-to-end encryption.
               </Text>
             </View>
           </View>

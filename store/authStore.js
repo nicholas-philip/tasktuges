@@ -1,10 +1,12 @@
-// ================== store/authStore.js (WITH TIMEOUT FIX) ==================
+// ================== store/authStore.js (FIXED WITH BETTER ERROR HANDLING) ==================
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   "https://react-native-app-mlpl.onrender.com/api";
+
+console.log("🔗 Auth API Base URL:", API_URL);
 
 // ✅ HELPER: Fetch with timeout
 const fetchWithTimeout = async (url, options = {}, timeout = 60000) => {
@@ -37,231 +39,7 @@ export const useAuthStore = create((set, get) => ({
   setError: (error) => set({ error }),
   clearError: () => set({ error: null }),
 
-  // Register user
-  register: async (username, email, password) => {
-    set({ isLoading: true, error: null });
-    try {
-      if (!username || username.length < 3) {
-        throw new Error("Username must be at least 3 characters");
-      }
-      if (!email || !email.includes("@")) {
-        throw new Error("Invalid email format");
-      }
-      if (!password || password.length < 6) {
-        throw new Error("Password must be at least 6 characters");
-      }
-
-      console.log("🔗 Registering user:", username);
-      console.log("📍 API URL:", API_URL);
-      console.log("📍 Full URL:", `${API_URL}/auth/register`);
-
-      const response = await fetchWithTimeout(
-        `${API_URL}/auth/register`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, email, password }),
-        },
-        60000 // 60 second timeout
-      );
-
-      console.log("📊 Response status:", response.status);
-
-      const data = await response.json();
-      console.log("📦 Response data:", data);
-
-      if (!response.ok) {
-        throw new Error(
-          data?.message || `Registration failed: ${response.status}`
-        );
-      }
-
-      if (!data?.user || !data?.token) {
-        throw new Error("Missing user or token in response");
-      }
-
-      // ✅ Save to AsyncStorage
-      await AsyncStorage.multiSet([
-        ["user", JSON.stringify(data.user)],
-        ["account", JSON.stringify(data.account || {})],
-        ["token", data.token],
-      ]);
-
-      set({
-        user: {
-          ...data.user,
-          account: data.account,
-        },
-        account: data.account,
-        token: data.token,
-        isLoading: false,
-        error: null,
-      });
-
-      console.log("✅ Registration successful:", data.user.email);
-      return {
-        success: true,
-        user: {
-          ...data.user,
-          account: data.account,
-        },
-      };
-    } catch (error) {
-      const message = error.message || "Network request failed";
-      set({ isLoading: false, error: message });
-      console.error("❌ Registration error:", message);
-      return { success: false, message };
-    }
-  },
-
-  // ✅ VERIFY EMAIL
-  verifyEmail: async (email, code) => {
-    set({ isLoading: true, error: null });
-    try {
-      if (!email || !code) {
-        throw new Error("Email and verification code are required");
-      }
-
-      console.log("🔗 Verifying email:", email);
-      console.log("🔐 Code:", code);
-      console.log("📍 Full URL:", `${API_URL}/auth/verify-email`);
-
-      const response = await fetchWithTimeout(
-        `${API_URL}/auth/verify-email`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, code }),
-        },
-        60000
-      );
-
-      console.log("📊 Response status:", response.status);
-
-      const data = await response.json();
-      console.log("📦 Response data:", data);
-
-      if (!response.ok) {
-        throw new Error(data?.message || "Email verification failed");
-      }
-
-      const currentUser = get().user;
-      const updatedUser = {
-        ...currentUser,
-        emailVerified: true,
-      };
-
-      await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
-
-      set({
-        user: updatedUser,
-        isLoading: false,
-        error: null,
-      });
-
-      console.log("✅ Email verified successfully!");
-      return {
-        success: true,
-        user: updatedUser,
-      };
-    } catch (error) {
-      const message = error.message || "Email verification failed";
-      set({ isLoading: false, error: message });
-      console.error("❌ Email verification error:", message);
-      return { success: false, message };
-    }
-  },
-
-  // ✅ RESEND VERIFICATION CODE - WITH BETTER ERROR HANDLING
-  resendVerificationCode: async (email) => {
-    set({ isLoading: true, error: null });
-
-    const startTime = Date.now();
-    console.log("⏱️ [RESEND] Request started at:", new Date().toISOString());
-
-    try {
-      if (!email) {
-        throw new Error("Email is required");
-      }
-
-      console.log("🔄 [RESEND] Resending code to:", email);
-      console.log("📍 [RESEND] API URL:", API_URL);
-      console.log(
-        "📍 [RESEND] Full endpoint:",
-        `${API_URL}/auth/resend-verification`
-      );
-
-      const requestBody = { email };
-      console.log("📤 [RESEND] Request body:", JSON.stringify(requestBody));
-
-      // ✅ Use fetch with timeout
-      const response = await fetchWithTimeout(
-        `${API_URL}/auth/resend-verification`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-        },
-        60000 // 60 second timeout
-      );
-
-      const duration = Date.now() - startTime;
-      console.log(`⏱️ [RESEND] Request completed in ${duration}ms`);
-      console.log("📊 [RESEND] Response status:", response.status);
-      console.log("📊 [RESEND] Response ok:", response.ok);
-
-      let data;
-      try {
-        const responseText = await response.text();
-        console.log("📝 [RESEND] Raw response:", responseText);
-        data = JSON.parse(responseText);
-        console.log("📦 [RESEND] Parsed data:", JSON.stringify(data));
-      } catch (parseError) {
-        console.error("⚠️ [RESEND] JSON parse error:", parseError.message);
-        throw new Error("Invalid response from server");
-      }
-
-      if (!response.ok) {
-        const errorMsg = data?.message || `Server error: ${response.status}`;
-        console.error("❌ [RESEND] API Error:", errorMsg);
-        throw new Error(errorMsg);
-      }
-
-      set({ isLoading: false, error: null });
-
-      console.log("✅ [RESEND] Success! Code resent to:", email);
-
-      return {
-        success: true,
-        message: data?.message || "Verification code resent successfully",
-      };
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      console.error(`❌ [RESEND] Failed after ${duration}ms`);
-      console.error("❌ [RESEND] Error type:", error.name);
-      console.error("❌ [RESEND] Error message:", error.message);
-
-      let userMessage = "Failed to resend verification code";
-
-      // Provide specific error messages
-      if (error.message.includes("timeout")) {
-        userMessage = "Request timeout. Server is slow. Please try again.";
-      } else if (error.message.includes("Network request failed")) {
-        userMessage = "Network error. Check your internet connection.";
-      } else if (error.message.includes("Invalid response")) {
-        userMessage = "Server error. Please try again later.";
-      } else {
-        userMessage = error.message;
-      }
-
-      set({ isLoading: false, error: userMessage });
-      return { success: false, message: userMessage };
-    }
-  },
-
-  // Login user
+  // ✅ LOGIN WITH BETTER ERROR HANDLING
   login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
@@ -283,8 +61,29 @@ export const useAuthStore = create((set, get) => ({
       );
 
       console.log("📊 Response status:", response.status);
+      console.log("📊 Response headers:", response.headers);
 
-      const data = await response.json();
+      // ✅ FIX: Check content type before parsing
+      const contentType = response.headers.get("content-type");
+      console.log("📝 Content-Type:", contentType);
+
+      let data;
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        // Not JSON, likely HTML error page
+        const text = await response.text();
+        console.error("❌ Non-JSON response received:");
+        console.error(
+          "📄 Response text (first 500 chars):",
+          text.substring(0, 500)
+        );
+        throw new Error(
+          `Server returned ${response.status} - Check backend logs for errors`
+        );
+      }
+
       console.log("📦 Response data:", data);
 
       if (!response.ok) {
@@ -328,7 +127,254 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  // Check auth status on app startup
+  // ✅ REGISTER
+  register: async (username, email, password) => {
+    set({ isLoading: true, error: null });
+    try {
+      if (!username || username.length < 3) {
+        throw new Error("Username must be at least 3 characters");
+      }
+      if (!email || !email.includes("@")) {
+        throw new Error("Invalid email format");
+      }
+      if (!password || password.length < 6) {
+        throw new Error("Password must be at least 6 characters");
+      }
+
+      console.log("🔗 Registering user:", username);
+      console.log("📍 Full URL:", `${API_URL}/auth/register`);
+
+      const response = await fetchWithTimeout(
+        `${API_URL}/auth/register`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, email, password }),
+        },
+        60000
+      );
+
+      console.log("📊 Response status:", response.status);
+
+      const contentType = response.headers.get("content-type");
+      let data;
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error("❌ Non-JSON response:", text.substring(0, 500));
+        throw new Error(
+          `Server returned ${response.status} - Check backend logs`
+        );
+      }
+
+      console.log("📦 Response data:", data);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message || `Registration failed: ${response.status}`
+        );
+      }
+
+      if (!data?.user || !data?.token) {
+        throw new Error("Missing user or token in response");
+      }
+
+      await AsyncStorage.multiSet([
+        ["user", JSON.stringify(data.user)],
+        ["account", JSON.stringify(data.account || {})],
+        ["token", data.token],
+      ]);
+
+      set({
+        user: {
+          ...data.user,
+          account: data.account,
+        },
+        account: data.account,
+        token: data.token,
+        isLoading: false,
+        error: null,
+      });
+
+      console.log("✅ Registration successful:", data.user.email);
+      return {
+        success: true,
+        user: {
+          ...data.user,
+          account: data.account,
+        },
+      };
+    } catch (error) {
+      const message = error.message || "Network request failed";
+      set({ isLoading: false, error: message });
+      console.error("❌ Registration error:", message);
+      return { success: false, message };
+    }
+  },
+
+  // ✅ VERIFY EMAIL
+  verifyEmail: async (email, code) => {
+    set({ isLoading: true, error: null });
+    try {
+      if (!email || !code) {
+        throw new Error("Email and verification code are required");
+      }
+
+      console.log("🔗 Verifying email:", email);
+
+      const response = await fetchWithTimeout(
+        `${API_URL}/auth/verify-email`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, code }),
+        },
+        60000
+      );
+
+      console.log("📊 Response status:", response.status);
+
+      const contentType = response.headers.get("content-type");
+      let data;
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Email verification failed");
+      }
+
+      const currentUser = get().user;
+      const updatedUser = {
+        ...currentUser,
+        emailVerified: true,
+      };
+
+      await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
+
+      set({
+        user: updatedUser,
+        isLoading: false,
+        error: null,
+      });
+
+      console.log("✅ Email verified successfully!");
+      return {
+        success: true,
+        user: updatedUser,
+      };
+    } catch (error) {
+      const message = error.message || "Email verification failed";
+      set({ isLoading: false, error: message });
+      console.error("❌ Email verification error:", message);
+      return { success: false, message };
+    }
+  },
+
+  // ✅ RESEND VERIFICATION CODE
+  resendVerificationCode: async (email) => {
+    set({ isLoading: true, error: null });
+
+    const startTime = Date.now();
+    console.log("⏱️ [RESEND] Request started at:", new Date().toISOString());
+
+    try {
+      if (!email) {
+        throw new Error("Email is required");
+      }
+
+      const response = await fetchWithTimeout(
+        `${API_URL}/auth/resend-verification`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        },
+        60000
+      );
+
+      const duration = Date.now() - startTime;
+      console.log(`⏱️ [RESEND] Request completed in ${duration}ms`);
+      console.log("📊 [RESEND] Response status:", response.status);
+
+      const contentType = response.headers.get("content-type");
+      let data;
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.message || `Server error: ${response.status}`);
+      }
+
+      set({ isLoading: false, error: null });
+      console.log("✅ [RESEND] Code resent to:", email);
+
+      return {
+        success: true,
+        message: data?.message || "Verification code resent successfully",
+      };
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      console.error(`❌ [RESEND] Failed after ${duration}ms:`, error.message);
+
+      let userMessage = error.message || "Failed to resend verification code";
+
+      set({ isLoading: false, error: userMessage });
+      return { success: false, message: userMessage };
+    }
+  },
+
+  // ✅ GET CURRENT USER
+  getCurrentUser: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await fetchWithTimeout(
+        `${API_URL}/auth/me`,
+        {
+          method: "GET",
+          headers: get().getAuthHeaders(),
+        },
+        60000
+      );
+
+      const contentType = response.headers.get("content-type");
+      let data;
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      if (!response.ok)
+        throw new Error(data?.message || "Failed to fetch user");
+
+      await AsyncStorage.setItem("user", JSON.stringify(data.user));
+      if (data.account) {
+        await AsyncStorage.setItem("account", JSON.stringify(data.account));
+      }
+
+      set({ user: data.user, account: data.account || null, isLoading: false });
+      return { success: true, user: data.user, account: data.account };
+    } catch (error) {
+      set({ isLoading: false, error: error.message });
+      console.error("❌ [getCurrentUser] Error:", error.message);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // ✅ CHECK AUTH
   checkAuth: async () => {
     set({ isLoading: true });
     try {
@@ -372,7 +418,7 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  // Logout user
+  // ✅ LOGOUT
   logout: async () => {
     set({ isLoading: true });
     try {
@@ -397,7 +443,7 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  // Update user profile
+  // ✅ UPDATE USER PROFILE
   updateUserProfile: async (updates) => {
     try {
       const user = get().user;
@@ -413,22 +459,7 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  // Update account data
-  updateAccount: async (accountData) => {
-    try {
-      const account = { ...get().account, ...accountData };
-      const user = get().user;
-
-      await AsyncStorage.setItem("account", JSON.stringify(account));
-      set({ account, user: { ...user, account } });
-
-      return { success: true, account };
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
-  },
-
-  // Get auth headers for API calls
+  // ✅ GET AUTH HEADERS
   getAuthHeaders: () => {
     const token = get().token;
     return {
@@ -437,7 +468,7 @@ export const useAuthStore = create((set, get) => ({
     };
   },
 
-  // Refresh auth from storage
+  // ✅ REFRESH AUTH
   refreshAuth: async () => {
     try {
       const [userJson, accountJson, token] = await AsyncStorage.multiGet([

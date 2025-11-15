@@ -1,5 +1,5 @@
-// ================== FILE 3: src/(tabs)/utils/transfer.jsx ==================
-import React, { useState } from "react";
+// src/(tabs)/utils/transfer.jsx - UPDATED WITH PAYSTACK
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,30 +10,84 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import { PaystackWebView } from "react-native-paystack-webview";
+
 import { useTransfer } from "../hooks/useTransactions";
+import { usePaystackInitialize } from "../hooks/usePayment";
 import { useGetBalance } from "../hooks/useWallet";
 import { useGetAccountDetails } from "../hooks/useAccount";
+import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
 
 export default function TransferScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
+  const paystackWebViewRef = useRef();
+
   const [recipientAccount, setRecipientAccount] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showPaystack, setShowPaystack] = useState(false);
+  const [paystackReference, setPaystackReference] = useState(null);
+  const [paystackKey, setPaystackKey] = useState("");
+  const [paystackEmail, setPaystackEmail] = useState("");
+  const [paystackAmount, setPaystackAmount] = useState(0);
 
   const { mutate: transfer, isPending } = useTransfer();
-  const { data: balanceData } = useGetBalance();
-  const { data: account } = useGetAccountDetails();
+  const { mutate: initializePaystack, isPending: isPaystackInitializing } =
+    usePaystackInitialize();
+  const { data: balanceData, refetch: refetchBalance } = useGetBalance();
+  const { data: account, refetch: refetchAccount } = useGetAccountDetails();
+
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      refetchBalance();
+      refetchAccount();
+      console.log("🔄 Transfer screen refreshed");
+    }, [refetchBalance, refetchAccount])
+  );
+
+  // Clear form when screen loses focus (user leaves)
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => {
+        // This runs when screen loses focus
+        resetForm();
+        console.log("🗑️ Transfer form cleared");
+      };
+    }, [])
+  );
+
+  // Clear form when screen loses focus (user leaves)
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => {
+        // This runs when screen loses focus
+        resetForm();
+        console.log("🗑️ Transfer form cleared");
+      };
+    }, [])
+  );
 
   const balance = balanceData?.balance || 0;
+
   const isValidAmount =
-    amount &&
-    !isNaN(amount) &&
-    parseFloat(amount) > 0 &&
-    parseFloat(amount) <= balance;
+    amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0;
+
   const isValidRecipient = recipientAccount && recipientAccount.length >= 8;
+
+  console.log("🔍 Transfer Form State:", {
+    amount,
+    isValidAmount,
+    recipientAccount,
+    isValidRecipient,
+    agreedToTerms,
+    balance,
+    amountExceedsBalance: parseFloat(amount) > balance,
+  });
 
   const formatAmount = (val) => {
     return new Intl.NumberFormat("en-US", {
@@ -52,9 +106,14 @@ export default function TransferScreen() {
     }
 
     if (!isValidAmount) {
+      Alert.alert("Invalid Amount", "Please enter a valid amount.");
+      return;
+    }
+
+    if (parseFloat(amount) > balance) {
       Alert.alert(
-        "Invalid Amount",
-        `Please enter a valid amount (Max: ${formatAmount(balance)})`
+        "Insufficient Balance",
+        `Your balance (${formatAmount(balance)}) is less than the transfer amount.`
       );
       return;
     }
@@ -67,38 +126,72 @@ export default function TransferScreen() {
       return;
     }
 
-    const transferData = {
-      recipientAccountNumber: recipientAccount,
-      amount: parseFloat(amount),
-      description: description || "Transfer",
-    };
+    // Initialize Paystack for transfer
+    initializePaystack(
+      {
+        amount: parseFloat(amount),
+        email: user?.email || `user_${user?.id}@tasktuges.app`,
+        recipientAccountNumber: recipientAccount,
+        description: description || `Transfer to ${recipientAccount}`,
+      },
+      {
+        onSuccess: (data) => {
+          setPaystackReference(data.reference);
+          setShowPaystack(true);
+        },
+        onError: (error) => {
+          Alert.alert(
+            "Error",
+            error?.message || "Failed to initialize transfer"
+          );
+        },
+      }
+    );
+  };
 
-    transfer(transferData, {
-      onSuccess: (data) => {
-        Alert.alert(
-          "Success",
-          `Transfer of ${formatAmount(amount)} completed!`,
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                setRecipientAccount("");
-                setAmount("");
-                setDescription("");
-                setAgreedToTerms(false);
-                router.back();
+  const handlePaystackSuccess = (res) => {
+    // Verify transfer with backend
+    transfer(
+      {
+        reference: paystackReference,
+        recipientAccountNumber: recipientAccount,
+        amount: parseFloat(amount),
+        description: description || "Transfer",
+      },
+      {
+        onSuccess: (data) => {
+          Alert.alert(
+            "Success",
+            `Transfer of ${formatAmount(amount)} completed!`,
+            [
+              {
+                text: "OK",
+                onPress: () => {
+                  resetForm();
+                  router.back();
+                },
               },
-            },
-          ]
-        );
-      },
-      onError: (error) => {
-        Alert.alert(
-          "Transfer Failed",
-          error?.message || "An error occurred during transfer."
-        );
-      },
-    });
+            ]
+          );
+        },
+        onError: (error) => {
+          Alert.alert(
+            "Transfer Failed",
+            error?.message || "An error occurred during transfer."
+          );
+          setShowPaystack(false);
+        },
+      }
+    );
+  };
+
+  const resetForm = () => {
+    setRecipientAccount("");
+    setAmount("");
+    setDescription("");
+    setAgreedToTerms(false);
+    setShowPaystack(false);
+    setPaystackReference(null);
   };
 
   const handleAmountChange = (text) => {
@@ -106,9 +199,27 @@ export default function TransferScreen() {
     setAmount(numericText);
   };
 
+  if (showPaystack && paystackReference) {
+    return (
+      <PaystackWebView
+        paystackKey="pk_live_YOUR_PUBLIC_KEY_HERE"
+        amount={parseFloat(amount) * 100}
+        billingEmail={user?.email || `user_${user?.id}@tasktuges.app`}
+        billingName={user?.name || "User"}
+        channels={["card"]}
+        onCancel={() => {
+          Alert.alert("Cancelled", "Transfer was cancelled");
+          setShowPaystack(false);
+        }}
+        onSuccess={handlePaystackSuccess}
+        ref={paystackWebViewRef}
+      />
+    );
+  }
+
   return (
     <SafeScreen>
-      <ScrollView className="flex-1 bg-gray-50">
+      <ScrollView className="flex-1 bg-gray-50 pt-8">
         <View className="flex-row items-center justify-between px-5 pt-4 pb-3">
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={28} color="#007AFF" />
@@ -228,16 +339,24 @@ export default function TransferScreen() {
         <View className="mx-5 mb-6">
           <TouchableOpacity
             className={`p-4 rounded-xl flex-row justify-center items-center ${
-              isValidAmount && isValidRecipient && agreedToTerms && !isPending
+              isValidAmount &&
+              isValidRecipient &&
+              agreedToTerms &&
+              !isPending &&
+              !isPaystackInitializing
                 ? "bg-orange-500"
                 : "bg-gray-300"
             }`}
             onPress={handleTransfer}
             disabled={
-              !isValidAmount || !isValidRecipient || !agreedToTerms || isPending
+              !isValidAmount ||
+              !isValidRecipient ||
+              !agreedToTerms ||
+              isPending ||
+              isPaystackInitializing
             }
           >
-            {isPending ? (
+            {isPending || isPaystackInitializing ? (
               <>
                 <ActivityIndicator
                   color="#fff"
@@ -277,8 +396,8 @@ export default function TransferScreen() {
                 Transfer Information
               </Text>
               <Text className="text-xs text-yellow-700 mt-1">
-                Transfers to accounts in this bank are instant. International
-                transfers may take 1-3 business days.
+                Transfers to accounts in this bank are instant. Transfers are
+                secured through Paystack.
               </Text>
             </View>
           </View>

@@ -1,7 +1,46 @@
-// ================== app/hooks/useTransactions.js ==================
+// ================== app/hooks/useTransactions.js (PAYSTACK TRANSFER) ==================
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "./useApi";
+
+// ✅ Initialize Paystack payment/transfer (shared hook)
+export function usePaystackInitialize() {
+  return useMutation({
+    mutationFn: (paystackData) =>
+      apiFetch("/payments/paystack/initialize", {
+        method: "POST",
+        body: paystackData,
+      }),
+    onSuccess: (data) => {
+      console.log("✅ Paystack initialized with reference:", data.reference);
+    },
+    onError: (error) => {
+      console.error("❌ Paystack initialization failed:", error.message);
+    },
+  });
+}
+
+// ✅ Transfer money (Paystack verified)
+export function useTransfer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (transferData) =>
+      apiFetch("/transactions/transfer", {
+        method: "POST",
+        body: transferData,
+      }),
+    onSuccess: () => {
+      console.log("✅ Transfer successful");
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["account"] });
+    },
+    onError: (error) => {
+      console.error("❌ Transfer failed:", error.message);
+    },
+  });
+}
 
 // Get transaction history with pagination
 export function useGetTransactions(params = {}) {
@@ -26,7 +65,7 @@ export function useGetSingleTransaction(transactionId) {
   });
 }
 
-// Deposit money
+// Deposit money (Direct - no Paystack)
 export function useDeposit() {
   const queryClient = useQueryClient();
 
@@ -70,32 +109,11 @@ export function useWithdraw() {
   });
 }
 
-// Transfer to another account
-export function useTransfer() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (transferData) =>
-      apiFetch("/transactions/transfer", {
-        method: "POST",
-        body: transferData,
-      }),
-    onSuccess: () => {
-      console.log("✅ Transfer successful");
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["wallet"] });
-      queryClient.invalidateQueries({ queryKey: ["account"] });
-    },
-    onError: (error) => {
-      console.error("❌ Transfer failed:", error.message);
-    },
-  });
-}
-
 export default {
+  usePaystackInitialize,
+  useTransfer,
   useGetTransactions,
   useGetSingleTransaction,
   useDeposit,
   useWithdraw,
-  useTransfer,
 };

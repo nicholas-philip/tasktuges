@@ -35,7 +35,7 @@ const Index = () => {
           className="w-20 h-20"
           resizeMode="contain"
         />
-        <Text className="text-4xl font-bold text-black">Tasktuges</Text>
+        <Text className="text-4xl font-bold text-black">SkyPay</Text>
       </View>
     </View>
   );

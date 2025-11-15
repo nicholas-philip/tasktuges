@@ -19,7 +19,7 @@ import SafeScreen from "../../components/SafeScreen";
 export default function WithdrawScreen() {
   const router = useRouter();
   const [amount, setAmount] = useState("");
-  const [withdrawMethod, setWithdrawMethod] = useState("atm");
+  const [withdrawMethod, setWithdrawMethod] = useState("bank_transfer");
   const [description, setDescription] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
@@ -27,13 +27,8 @@ export default function WithdrawScreen() {
   const { data: balanceData } = useGetBalance();
   const { data: account } = useGetAccountDetails();
 
+  // ⛔ ATM REMOVED — Only Bank Transfer & Counter remain
   const withdrawMethods = [
-    {
-      id: "atm",
-      label: "ATM Withdrawal",
-      icon: "card",
-      color: "bg-blue-500",
-    },
     {
       id: "bank_transfer",
       label: "Bank Transfer",
@@ -49,6 +44,7 @@ export default function WithdrawScreen() {
   ];
 
   const balance = balanceData?.balance || 0;
+
   const isValidAmount =
     amount &&
     !isNaN(amount) &&
@@ -170,6 +166,7 @@ export default function WithdrawScreen() {
           <Text className="text-sm font-semibold text-gray-700 mb-3">
             Select Withdrawal Method
           </Text>
+
           <View className="space-y-2">
             {withdrawMethods.map((method) => (
               <TouchableOpacity
@@ -186,11 +183,13 @@ export default function WithdrawScreen() {
                 >
                   <Ionicons name={method.icon} size={24} color="#fff" />
                 </View>
+
                 <View className="flex-1">
                   <Text className="font-semibold text-gray-800">
                     {method.label}
                   </Text>
                 </View>
+
                 <View
                   className={`w-5 h-5 rounded-full border-2 items-center justify-center ${
                     withdrawMethod === method.id
@@ -233,6 +232,7 @@ export default function WithdrawScreen() {
               <Ionicons name="checkmark" size={14} color="#fff" />
             )}
           </TouchableOpacity>
+
           <Text className="flex-1 text-sm text-gray-600">
             I agree to the{" "}
             <Text className="text-red-600 font-semibold">
@@ -291,9 +291,11 @@ export default function WithdrawScreen() {
               <Text className="font-semibold text-yellow-800 text-sm">
                 Processing Time
               </Text>
+
+              {/* Updated text (ATM removed) */}
               <Text className="text-xs text-yellow-700 mt-1">
-                ATM withdrawals are instant. Bank transfers typically complete
-                within 1-3 business days.
+                Bank transfers typically complete within 1-3 business days.
+                Counter withdrawals are processed immediately at the branch.
               </Text>
             </View>
           </View>

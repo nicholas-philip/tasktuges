@@ -1,7 +1,47 @@
-// ================== app/hooks/usePayment.js ==================
+// ================== app/hooks/usePayment.js (PAYSTACK) ==================
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "./useApi";
+
+// ✅ Initialize Paystack payment/transfer
+export function usePaystackInitialize() {
+  return useMutation({
+    mutationFn: (paystackData) =>
+      apiFetch("/payments/paystack/initialize", {
+        method: "POST",
+        body: paystackData,
+      }),
+    onSuccess: (data) => {
+      console.log("✅ Paystack initialized with reference:", data.reference);
+    },
+    onError: (error) => {
+      console.error("❌ Paystack initialization failed:", error.message);
+    },
+  });
+}
+
+// ✅ Verify Paystack payment (handles payment, transfer, and deposits)
+export function useInitiatePayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (paymentData) =>
+      apiFetch(`/payments/paystack/verify/${paymentData.reference}`, {
+        method: "POST",
+        body: paymentData,
+      }),
+    onSuccess: () => {
+      console.log("✅ Payment verified successfully");
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["account"] });
+    },
+    onError: (error) => {
+      console.error("❌ Payment verification failed:", error.message);
+    },
+  });
+}
 
 // Get payment history with pagination
 export function useGetPaymentHistory(params = {}) {
@@ -36,47 +76,7 @@ export function useGetSinglePayment(paymentId) {
   });
 }
 
-// Initiate payment (wallet, card, or transfer)
-export function useInitiatePayment() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (paymentData) =>
-      apiFetch("/payments/initiate", {
-        method: "POST",
-        body: paymentData,
-      }),
-    onSuccess: () => {
-      console.log("✅ Payment initiated successfully");
-      queryClient.invalidateQueries({ queryKey: ["payments"] });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["wallet"] });
-      queryClient.invalidateQueries({ queryKey: ["account"] });
-    },
-    onError: (error) => {
-      console.error("❌ Payment initiation failed:", error.message);
-    },
-  });
-}
-
-// Initialize Paystack mobile money payment
-export function usePaystackInitialize() {
-  return useMutation({
-    mutationFn: (paystackData) =>
-      apiFetch("/payments/paystack/initialize", {
-        method: "POST",
-        body: paystackData,
-      }),
-    onSuccess: (data) => {
-      console.log("✅ Paystack initialized with reference:", data.reference);
-    },
-    onError: (error) => {
-      console.error("❌ Paystack initialization failed:", error.message);
-    },
-  });
-}
-
-// Verify Paystack payment
+// ✅ Verify Paystack payment (for deposits)
 export function usePaystackVerify() {
   const queryClient = useQueryClient();
 
@@ -84,13 +84,13 @@ export function usePaystackVerify() {
     mutationFn: (reference) =>
       apiFetch(`/payments/paystack/verify/${reference}`, {
         method: "POST",
+        body: {},
       }),
     onSuccess: () => {
       console.log("✅ Payment verified successfully");
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["account"] });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
     },
     onError: (error) => {
       console.error("❌ Payment verification failed:", error.message);
@@ -98,33 +98,11 @@ export function usePaystackVerify() {
   });
 }
 
-// Cancel pending payment
-export function useCancelPayment() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (paymentId) =>
-      apiFetch(`/payments/${paymentId}/cancel`, {
-        method: "PATCH",
-      }),
-    onSuccess: () => {
-      console.log("✅ Payment cancelled");
-      queryClient.invalidateQueries({ queryKey: ["payments"] });
-      queryClient.invalidateQueries({ queryKey: ["wallet"] });
-      queryClient.invalidateQueries({ queryKey: ["account"] });
-    },
-    onError: (error) => {
-      console.error("❌ Payment cancellation failed:", error.message);
-    },
-  });
-}
-
 export default {
+  usePaystackInitialize,
+  useInitiatePayment,
+  usePaystackVerify,
   useGetPaymentHistory,
   useGetPaymentStatus,
   useGetSinglePayment,
-  useInitiatePayment,
-  usePaystackInitialize,
-  usePaystackVerify,
-  useCancelPayment,
 };

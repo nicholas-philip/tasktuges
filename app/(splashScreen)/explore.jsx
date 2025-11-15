@@ -14,26 +14,26 @@ import SafeScreen from "../../components/SafeScreen";
 
 const { width, height } = Dimensions.get("window");
 
-const APP_NAME = "Tasktuges";
+const APP_NAME = "SkyPay";
 
 const ONBOARDING_STEPS = [
   {
     image: require("../../assets/images1/cartoon1.png"),
-    name: "Team Up For Success",
+    name: "Smart Payments Made Easy",
     description:
-      "Team up for success! Learning and growing are easier when we work as a team. Share knowledge, support one another, and watch how collaboration leads to amazing results.",
+      "Send and receive money instantly with SkyPay. Fast, secure, and designed to make your daily transactions simple.",
   },
   {
     image: require("../../assets/images1/cartoon2.png"),
-    name: "User-Friendly At Its Core",
+    name: "Secure & User-Friendly",
     description:
-      "Our app is designed with you in mind. Enjoy a seamless experience with intuitive navigation and easy-to-use features that make managing your tasks a breeze.",
+      "SkyPay is built with top-level security and a clean interface, giving you a safe and effortless way to manage your money.",
   },
   {
     image: require("../../assets/images1/cartoon3.png"),
-    name: "Easy Tasks Creation",
+    name: "Track & Manage Finances",
     description:
-      "Creating tasks has never been easier! Quickly add, organize, and prioritize your to-dos so you can stay focused and productive throughout your day.",
+      "Stay in control with real-time transaction history, spending insights, and easy tools to help you manage your finances better.",
   },
 ];
 
@@ -52,57 +52,25 @@ export default function OnboardingScreen() {
   // Initialize auth check on mount
   useEffect(() => {
     const initAuth = async () => {
-      console.log("🎬 [Onboarding] Checking auth status");
+      console.log("🎬 Onboarding - checking auth status");
       await checkAuth();
     };
     initAuth();
   }, []);
 
-  // ✅ FIXED: Determine where to navigate based on auth state
+  // Extract navigation logic
   const navigateToNextScreen = useCallback(() => {
-    console.log("📱 [Onboarding] Navigate based on auth state");
-    console.log("   - has user:", !!user);
-    console.log("   - has token:", !!token);
-    console.log("   - emailVerified:", user?.emailVerified);
-    console.log("   - profileCompleted:", user?.profileCompleted);
-    console.log("   - accountStatus:", user?.account?.status);
+    console.log("📱 Navigate to next screen");
+    console.log("   - user:", !!user);
+    console.log("   - token:", !!token);
 
-    // ✅ No user or token - go to login
-    if (!user || !token) {
-      console.log("🔴 [Onboarding] No auth - going to login screen");
-      router.replace("/(auth)/index");
-      return;
+    if (user && token) {
+      console.log("🟢 User authenticated - going to tabs");
+      router.replace("/(tabs)");
+    } else {
+      console.log("🔴 No auth - going to login");
+      router.replace("/(auth)");
     }
-
-    // ✅ User exists but email not verified - go to verify email
-    if (!user.emailVerified) {
-      console.log(
-        "🟡 [Onboarding] Email not verified - going to verify-email screen"
-      );
-      router.replace({
-        pathname: "/(auth)/verify-email",
-        params: { email: user.email },
-      });
-      return;
-    }
-
-    // ✅ Email verified but account setup not complete - go to account setup
-    const needsAccountSetup =
-      !user.profileCompleted ||
-      !user.account ||
-      user.account.status === "pending";
-
-    if (needsAccountSetup) {
-      console.log(
-        "🟡 [Onboarding] Account setup incomplete - going to account-setup screen"
-      );
-      router.replace("/(auth)/account-setup");
-      return;
-    }
-
-    // ✅ Everything complete - go to main app
-    console.log("🟢 [Onboarding] All checks passed - going to tabs (main app)");
-    router.replace("/(tabs)");
   }, [user, token, router]);
 
   // Animate transition between steps
@@ -152,7 +120,6 @@ export default function OnboardingScreen() {
         setCurrentStep(currentStep + 1);
       });
     } else {
-      // On last step, navigate based on auth state
       navigateToNextScreen();
     }
   }, [currentStep, isAnimating, animateTransition, navigateToNextScreen]);
@@ -178,11 +145,11 @@ export default function OnboardingScreen() {
         <View className="flex-row items-center justify-center mt-16 pb-4">
           <Image
             source={require("../../assets/images1/logo.png")}
-            className="w-12 h-12"
+            className="w-16 h-16"
             resizeMode="contain"
           />
           <Text
-            className="text-4xl font-bold text-black ml-2"
+            className="text-4xl font-bold text-black "
             style={{
               fontFamily: "Poppins-Bold",
               letterSpacing: 0.5,
@@ -262,7 +229,7 @@ export default function OnboardingScreen() {
 
             {/* Title */}
             <Text
-              className="text-3xl font-bold text-gray-800 text-center mb-6 px-4"
+              className="text-2xl font-bold text-black text-center mb-4  px-4"
               style={{ fontFamily: "Poppins-Bold" }}
             >
               {currentItem.name}
@@ -270,7 +237,7 @@ export default function OnboardingScreen() {
 
             {/* Description */}
             <Text
-              className="text-base text-center text-gray-700 leading-6 px-6"
+              className="text-base text-center text-gray-800 leading-6 px-6"
               style={{ fontFamily: "Poppins-Regular" }}
             >
               {currentItem.description}
@@ -282,7 +249,7 @@ export default function OnboardingScreen() {
         <TouchableOpacity
           onPress={handleNext}
           disabled={isAnimating}
-          className={`bg-black py-8 rounded-full items-center  mb-20 ${
+          className={`bg-black py-8 rounded-full items-center mb-8   ${
             isAnimating ? "opacity-60" : ""
           }`}
           accessibilityLabel={isLastStep ? "Get started" : "Next step"}

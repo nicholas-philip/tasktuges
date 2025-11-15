@@ -24,6 +24,7 @@ import {
 import { useSetupAccount } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
+import { Image } from "react-native";
 
 export default function AccountSetup() {
   const router = useRouter();
@@ -550,6 +551,18 @@ export default function AccountSetup() {
       >
         <ScrollView className="flex-1" contentContainerStyle={{ padding: 20 }}>
           {/* Header */}
+          <View className="absolute top-10 left-0 right-0 items-center">
+            <View className="flex flex-row items-center justify-center mb-8">
+              <Image
+                source={require("../../assets/images1/logo.png")}
+                className="w-16 h-16 mr-2"
+                resizeMode="contain"
+              />
+              <Text className="text-4xl font-extrabold text-black tracking-wide">
+                SkyPay
+              </Text>
+            </View>
+          </View>
           <View className="items-center mb-8 mt-6">
             <Text className="text-3xl font-bold text-gray-800 mb-2 text-center">
               Complete Your Account Setup

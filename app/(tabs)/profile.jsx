@@ -9,15 +9,19 @@ import {
   Alert,
   Image,
 } from "react-native";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
 
 import { useGetAccountDetails, useUpdateAccount } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
-import { useRouter } from "expo-router";
 
 const ProfileScreen = ({ navigation }) => {
-  const { logout, user } = useAuthStore();
   const router = useRouter();
+  const { user, logout } = useAuthStore();
+
   const {
     data: accountData,
     isLoading: detailsLoading,
@@ -28,6 +32,9 @@ const ProfileScreen = ({ navigation }) => {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editError, setEditError] = useState("");
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [profileImage, setProfileImage] = useState(user?.profileImage || null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const [formData, setFormData] = useState({
     phoneNumber: "",
@@ -55,6 +62,84 @@ const ProfileScreen = ({ navigation }) => {
     }
   }, [accountData]);
 
+  const pickImage = async () => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Denied",
+          "Please grant permission to access your media library"
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setProfileImage(result.assets[0].uri);
+        // Here you would typically upload to your backend
+        // await uploadProfileImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to pick image");
+      console.error(error);
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Denied",
+          "Please grant permission to access your camera"
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setProfileImage(result.assets[0].uri);
+        // Here you would typically upload to your backend
+        // await uploadProfileImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to take photo");
+      console.error(error);
+    }
+  };
+
+  const showImagePickerOptions = () => {
+    Alert.alert("Update Profile Picture", "Choose an option", [
+      {
+        text: "Take Photo",
+        onPress: takePhoto,
+      },
+      {
+        text: "Choose from Gallery",
+        onPress: pickImage,
+      },
+      {
+        text: "Cancel",
+        onPress: () => {},
+        style: "cancel",
+      },
+    ]);
+  };
+
   const handleInputChange = (key, value) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
     setEditError("");
@@ -75,6 +160,43 @@ const ProfileScreen = ({ navigation }) => {
     } catch (error) {
       setEditError(error.message || "Failed to update profile");
     }
+  };
+
+  const handleLogout = async () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      {
+        text: "Cancel",
+        onPress: () => {},
+        style: "cancel",
+      },
+      {
+        text: "Logout",
+        onPress: async () => {
+          setIsLoggingOut(true);
+          try {
+            const result = await logout();
+            console.log("📱 Logout result:", result);
+            if (result.success) {
+              Alert.alert("Success", "Logged out successfully", [
+                {
+                  text: "OK",
+                  onPress: () => {
+                    router.replace("(auth)");
+                  },
+                },
+              ]);
+            } else {
+              Alert.alert("Error", result.message || "Logout failed");
+              setIsLoggingOut(false);
+            }
+          } catch (error) {
+            Alert.alert("Error", error.message || "Logout failed");
+            setIsLoggingOut(false);
+          }
+        },
+        style: "destructive",
+      },
+    ]);
   };
 
   if (detailsLoading) {
@@ -124,111 +246,158 @@ const ProfileScreen = ({ navigation }) => {
       )}
     </View>
   );
-  const handleLogout = async () => {
-    await logout();
-    router.replace("/(auth)");
-  };
 
   return (
     <SafeScreen>
       <ScrollView className="flex-1 bg-gray-50">
-        {/* ================= HEADER ================= */}
-        <View className="bg-indigo-700 px-6 py-10 rounded-b-3xl shadow-md">
-          <View className="flex-row items-center gap-4 mb-6">
-            {user?.profileImage ? (
-              <Image
-                source={{ uri: user.profileImage }}
-                className="w-16 h-16 rounded-full"
-              />
-            ) : (
-              <View className="w-16 h-16 rounded-full bg-white/20 justify-center items-center">
-                <Text className="text-2xl font-bold text-white">
-                  {user?.username?.[0]?.toUpperCase()}
-                </Text>
+        {/* ================= HERO HEADER ================= */}
+        <LinearGradient
+          colors={["#4F46E5", "#6366F1", "#818CF8"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            paddingHorizontal: 24,
+            paddingTop: 32,
+            paddingBottom: 64,
+            borderBottomLeftRadius: 24,
+            borderBottomRightRadius: 24,
+          }}
+        >
+          {/* Profile Picture with Camera Icon */}
+          <View className="items-center mb-6">
+            <TouchableOpacity
+              onPress={showImagePickerOptions}
+              className="relative"
+            >
+              {profileImage ? (
+                <Image
+                  source={{ uri: profileImage }}
+                  className="w-28 h-28 rounded-full border-4 border-white shadow-lg"
+                  style={{ aspectRatio: 1, resizeMode: "cover" }}
+                />
+              ) : (
+                <View className="w-28 h-28 rounded-full bg-white/20 justify-center items-center border-4 border-white">
+                  <Text className="text-5xl font-bold text-white">
+                    {user?.username?.[0]?.toUpperCase() || "U"}
+                  </Text>
+                </View>
+              )}
+
+              {/* Camera Icon Badge */}
+              <View className="absolute bottom-0 right-0 bg-white rounded-full p-3 shadow-md">
+                <Ionicons name="camera" size={18} color="#4F46E5" />
               </View>
-            )}
+            </TouchableOpacity>
 
-            <View>
-              <Text className="text-2xl font-bold text-white">
-                {account?.personalInfo?.firstName}{" "}
-                {account?.personalInfo?.lastName}
-              </Text>
-              <Text className="text-indigo-100">{user?.email}</Text>
-            </View>
+            <Text className="text-2xl font-bold text-white mt-5">
+              {account?.personalInfo?.firstName || user?.username || "User"}{" "}
+              {account?.personalInfo?.lastName || ""}
+            </Text>
+            <Text className="text-indigo-100 text-sm mt-1">{user?.email}</Text>
           </View>
 
-          {/* Top Stats */}
-          <View className="flex-row gap-3">
-            <View className="flex-1 bg-white/10 rounded-xl p-3">
-              <Text className="text-indigo-100 text-xs">Account Number</Text>
-              <Text className="text-white font-semibold text-sm">
-                {account?.accountNumber}
+          {/* Stats Cards */}
+          <View className="flex-row gap-2">
+            <View className="flex-1 bg-white/10 rounded-2xl p-3 backdrop-blur-sm">
+              <Text className="text-indigo-100 text-xs font-semibold">
+                Account
+              </Text>
+              <Text className="text-white font-bold text-sm mt-1">
+                {account?.accountNumber?.slice(-4) || "••••"}
               </Text>
             </View>
 
-            <View className="flex-1 bg-white/10 rounded-xl p-3">
-              <Text className="text-indigo-100 text-xs">Status</Text>
-              <Text className="text-white font-semibold text-sm capitalize">
-                {account?.status}
+            <View className="flex-1 bg-white/10 rounded-2xl p-3 backdrop-blur-sm">
+              <Text className="text-indigo-100 text-xs font-semibold">
+                Status
+              </Text>
+              <Text className="text-white font-bold text-sm mt-1 capitalize">
+                {account?.status || "Active"}
               </Text>
             </View>
 
-            <View className="flex-1 bg-white/10 rounded-xl p-3">
-              <Text className="text-indigo-100 text-xs">Balance</Text>
-              <Text className="text-white font-semibold text-sm">
-                {account?.currency} {account?.balance}
+            <View className="flex-1 bg-white/10 rounded-2xl p-3 backdrop-blur-sm">
+              <Text className="text-indigo-100 text-xs font-semibold">
+                Balance
+              </Text>
+              <Text className="text-white font-bold text-sm mt-1">
+                {account?.currency} {account?.balance || "0"}
               </Text>
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
         {/* ================= MAIN CONTENT ================= */}
         <View className="px-6 py-6">
           {editError ? (
-            <View className="mb-4 p-3 bg-red-50 rounded-xl border border-red-200">
-              <Text className="text-red-800 text-sm">{editError}</Text>
+            <View className="mb-4 p-4 bg-red-50 rounded-xl border border-red-200 flex-row items-center gap-2">
+              <Ionicons name="alert-circle" size={20} color="#DC2626" />
+              <Text className="text-red-800 text-sm flex-1">{editError}</Text>
             </View>
           ) : null}
 
           {/* PERSONAL INFO */}
           <View className="mb-6">
-            <Text className="text-lg font-bold text-gray-900 mb-3">
-              Personal Information
-            </Text>
+            <View className="flex-row items-center gap-2 mb-4">
+              <Ionicons name="person" size={20} color="#4F46E5" />
+              <Text className="text-lg font-bold text-gray-900">
+                Personal Information
+              </Text>
+            </View>
 
-            <View className="bg-white rounded-xl p-4 border border-gray-200 space-y-4">
-              <Text className="text-base font-medium">
-                First Name: {account?.personalInfo?.firstName || "N/A"}
-              </Text>
-              <Text className="text-base font-medium">
-                Last Name: {account?.personalInfo?.lastName || "N/A"}
-              </Text>
-              <Text className="text-base font-medium">
-                DOB:{" "}
-                {account?.personalInfo?.dateOfBirth
-                  ? new Date(
-                      account.personalInfo.dateOfBirth
-                    ).toLocaleDateString()
-                  : "N/A"}
-              </Text>
+            <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
+              <View className="flex-row justify-between items-center pb-3 border-b border-gray-100">
+                <Text className="text-gray-600 font-medium">First Name</Text>
+                <Text className="font-semibold text-gray-900">
+                  {account?.personalInfo?.firstName || "N/A"}
+                </Text>
+              </View>
+              <View className="flex-row justify-between items-center pb-3 border-b border-gray-100">
+                <Text className="text-gray-600 font-medium">Last Name</Text>
+                <Text className="font-semibold text-gray-900">
+                  {account?.personalInfo?.lastName || "N/A"}
+                </Text>
+              </View>
+              <View className="flex-row justify-between items-center">
+                <Text className="text-gray-600 font-medium">Date of Birth</Text>
+                <Text className="font-semibold text-gray-900">
+                  {account?.personalInfo?.dateOfBirth
+                    ? new Date(
+                        account.personalInfo.dateOfBirth
+                      ).toLocaleDateString()
+                    : "N/A"}
+                </Text>
+              </View>
             </View>
           </View>
 
           {/* CONTACT INFO */}
           <View className="mb-6">
-            <View className="flex-row justify-between items-center mb-3">
-              <Text className="text-lg font-bold text-gray-900">
-                Contact Information
-              </Text>
+            <View className="flex-row justify-between items-center mb-4">
+              <View className="flex-row items-center gap-2">
+                <Ionicons name="call" size={20} color="#4F46E5" />
+                <Text className="text-lg font-bold text-gray-900">
+                  Contact Information
+                </Text>
+              </View>
 
-              <TouchableOpacity onPress={() => setIsEditing(!isEditing)}>
-                <Text className="text-indigo-600 font-semibold">
+              <TouchableOpacity
+                onPress={() => setIsEditing(!isEditing)}
+                className={`px-4 py-2 rounded-lg ${
+                  isEditing ? "bg-red-100" : "bg-indigo-100"
+                }`}
+              >
+                <Text
+                  className={`font-semibold ${
+                    isEditing ? "text-red-600" : "text-indigo-600"
+                  }`}
+                >
                   {isEditing ? "Cancel" : "Edit"}
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <View className="bg-white rounded-xl p-4 border border-gray-200">
+            <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
               <InputField
                 label="Phone Number"
                 value={formData.phoneNumber}
@@ -265,30 +434,39 @@ const ProfileScreen = ({ navigation }) => {
 
           {/* IDENTIFICATION */}
           <View className="mb-6">
-            <Text className="text-lg font-bold text-gray-900 mb-3">
-              Identification
-            </Text>
-
-            <View className="bg-white rounded-xl p-4 border border-gray-200 space-y-3">
-              <Text className="text-base font-medium">
-                ID Type: {account?.identification?.idType || "N/A"}
+            <View className="flex-row items-center gap-2 mb-4">
+              <Ionicons name="document" size={20} color="#4F46E5" />
+              <Text className="text-lg font-bold text-gray-900">
+                Identification
               </Text>
-              <Text className="text-base font-medium">
-                ID Number: {account?.identification?.idNumber || "N/A"}
-              </Text>
+            </View>
 
-              <View className="flex-row items-center gap-2">
+            <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
+              <View className="flex-row justify-between items-center pb-3 border-b border-gray-100">
+                <Text className="text-gray-600 font-medium">ID Type</Text>
+                <Text className="font-semibold text-gray-900">
+                  {account?.identification?.idType || "N/A"}
+                </Text>
+              </View>
+              <View className="flex-row justify-between items-center pb-3 border-b border-gray-100">
+                <Text className="text-gray-600 font-medium">ID Number</Text>
+                <Text className="font-semibold text-gray-900">
+                  {account?.identification?.idNumber || "N/A"}
+                </Text>
+              </View>
+
+              <View className="flex-row items-center gap-3 pt-2">
                 <View
-                  className={`w-2 h-2 rounded-full ${
+                  className={`w-3 h-3 rounded-full ${
                     account?.identification?.verified
                       ? "bg-green-500"
-                      : "bg-gray-300"
+                      : "bg-yellow-500"
                   }`}
                 />
-                <Text className="font-medium">
+                <Text className="font-medium text-gray-900">
                   {account?.identification?.verified
-                    ? "Verified"
-                    : "Not Verified"}
+                    ? "✓ Verified"
+                    : "⏳ Pending Verification"}
                 </Text>
               </View>
             </View>
@@ -296,19 +474,14 @@ const ProfileScreen = ({ navigation }) => {
 
           {/* EMPLOYMENT */}
           <View className="mb-6">
-            <View className="flex-row justify-between items-center mb-3">
+            <View className="flex-row items-center gap-2 mb-4">
+              <Ionicons name="briefcase" size={20} color="#4F46E5" />
               <Text className="text-lg font-bold text-gray-900">
                 Employment Information
               </Text>
-
-              {!isEditing && (
-                <TouchableOpacity onPress={() => setIsEditing(true)}>
-                  <Text className="text-indigo-600 font-semibold">Edit</Text>
-                </TouchableOpacity>
-              )}
             </View>
 
-            <View className="bg-white rounded-xl p-4 border border-gray-200">
+            <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
               <InputField
                 label="Occupation"
                 value={formData.occupation}
@@ -325,61 +498,82 @@ const ProfileScreen = ({ navigation }) => {
             </View>
           </View>
 
+          {/* ACCOUNT INFO */}
+          <View
+            style={{
+              backgroundColor: "#F0F4FF",
+              borderRadius: 16,
+              padding: 20,
+              borderWidth: 1,
+              borderColor: "#E0E7FF",
+              marginBottom: 24,
+            }}
+          >
+            <View className="flex-row items-center gap-2 mb-3">
+              <Ionicons name="shield-checkmark" size={18} color="#4F46E5" />
+              <Text className="text-sm font-bold text-indigo-900">
+                Account Information
+              </Text>
+            </View>
+
+            <View className="space-y-2">
+              <Text className="text-xs text-indigo-700">
+                Type:{" "}
+                <Text className="font-bold capitalize">
+                  {account?.accountType || "Standard"}
+                </Text>
+              </Text>
+
+              <Text className="text-xs text-indigo-700">
+                Verification:{" "}
+                <Text className="font-bold capitalize">
+                  {account?.verificationLevel || "Basic"}
+                </Text>
+              </Text>
+
+              <Text className="text-xs text-indigo-700">
+                Created:{" "}
+                <Text className="font-bold">
+                  {account?.createdAt
+                    ? new Date(account.createdAt).toLocaleDateString()
+                    : "N/A"}
+                </Text>
+              </Text>
+            </View>
+          </View>
+
           {/* SAVE BUTTON */}
           {isEditing && (
             <TouchableOpacity
               onPress={handleSaveChanges}
               disabled={updateAccountMutation.isPending}
-              className={`py-4 rounded-xl mb-6 ${
+              className={`py-4 rounded-xl mb-6 flex-row justify-center items-center gap-2 ${
                 updateAccountMutation.isPending
-                  ? "bg-gray-400"
+                  ? "bg-gray-300"
                   : "bg-indigo-600"
               }`}
             >
-              <View className="flex-row justify-center items-center gap-2">
-                {updateAccountMutation.isPending && (
-                  <ActivityIndicator size="small" color="white" />
-                )}
-                <Text className="text-white font-bold text-center">
-                  {updateAccountMutation.isPending
-                    ? "Saving..."
-                    : "Save Changes"}
-                </Text>
-              </View>
+              {updateAccountMutation.isPending && (
+                <ActivityIndicator size="small" color="white" />
+              )}
+              <Text className="text-white font-bold text-center">
+                {updateAccountMutation.isPending ? "Saving..." : "Save Changes"}
+              </Text>
             </TouchableOpacity>
           )}
 
-          {/* ACCOUNT INFO */}
-          <View className="bg-indigo-50 rounded-xl p-4 border border-indigo-200 mb-6">
-            <Text className="text-sm font-semibold text-indigo-900 mb-2">
-              Account Information
-            </Text>
-
-            <Text className="text-xs text-indigo-700 mb-1">
-              Type:{" "}
-              <Text className="font-semibold">{account?.accountType}</Text>
-            </Text>
-
-            <Text className="text-xs text-indigo-700 mb-1">
-              Verification Level:{" "}
-              <Text className="font-semibold capitalize">
-                {account?.verificationLevel}
-              </Text>
-            </Text>
-
-            <Text className="text-xs text-indigo-700">
-              Created:{" "}
-              <Text className="font-semibold">
-                {new Date(account?.createdAt).toLocaleDateString()}
-              </Text>
-            </Text>
-          </View>
+          {/* LOGOUT BUTTON */}
           <TouchableOpacity
             onPress={handleLogout}
-            className="bg-red-500 py-4 rounded-2xl active:opacity-80"
+            disabled={isLoggingOut}
+            className={`py-4 rounded-xl mb-6 flex-row justify-center items-center gap-2 ${
+              isLoggingOut ? "bg-red-400" : "bg-red-600"
+            }`}
           >
-            <Text className="text-white text-center text-lg font-semibold">
-              Sign Out
+            {isLoggingOut && <ActivityIndicator size="small" color="white" />}
+            <Ionicons name="log-out" size={18} color="white" />
+            <Text className="text-white font-bold text-center">
+              {isLoggingOut ? "Logging out..." : "Logout"}
             </Text>
           </TouchableOpacity>
         </View>

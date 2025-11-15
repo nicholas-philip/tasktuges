@@ -1,5 +1,5 @@
 // ================== app/(auth)/verify-email.jsx (UPDATED) ==================
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -60,7 +60,7 @@ export default function VerifyEmail() {
         router.replace("/(tabs)");
       }
     }
-  }, [user?.emailVerified, user?.profileCompleted, router]);
+  }, [user?.emailVerified, user.profileCompleted, router, user.account]);
 
   const handleVerify = async () => {
     clearError();

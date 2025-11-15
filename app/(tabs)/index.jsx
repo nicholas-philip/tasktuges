@@ -153,6 +153,12 @@ export default function HomeScreen() {
     return str.replace(/(\d{4})(?=\d)/g, "$1 ");
   };
 
+  // Format card holder name
+  const formatCardName = (name) => {
+    if (!name) return "USER";
+    return name.toUpperCase().substring(0, 20);
+  };
+
   // Get transaction icon
   const getTransactionIcon = (type) => {
     const icons = {
@@ -294,8 +300,10 @@ export default function HomeScreen() {
                   <Text className="text-white/70 text-xs mb-1">
                     Card Holder
                   </Text>
-                  <Text className="text-white text-sm font-semibold uppercase">
-                    {user?.username || "User"}
+                  <Text className="text-white text-sm font-semibold">
+                    {visible
+                      ? formatCardName(user?.username || "User")
+                      : "••••••••••••"}
                   </Text>
                 </View>
                 <View>
@@ -316,7 +324,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Quick Actions */}
-        <View className="flex-row justify-around px-5 -mt-5 mb-5">
+        <View className="flex-row justify-around px-5 -mt-5 mb-5 ">
           <TouchableOpacity
             className="items-center"
             onPress={() => router.push("deposit")}
@@ -324,7 +332,7 @@ export default function HomeScreen() {
             <View className="w-16 h-16 bg-white rounded-2xl justify-center items-center mb-2 shadow-md">
               <Ionicons name="add" size={28} color="#22c55e" />
             </View>
-            <Text className="text-xs text-gray-700 font-semibold">Deposit</Text>
+            <Text className="text-xs font-bold text-black">Deposit</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -334,9 +342,7 @@ export default function HomeScreen() {
             <View className="w-16 h-16 bg-white rounded-2xl justify-center items-center mb-2 shadow-md">
               <Ionicons name="remove" size={28} color="#ef4444" />
             </View>
-            <Text className="text-xs text-gray-700 font-semibold">
-              Withdraw
-            </Text>
+            <Text className="text-xs font-bold text-black">Withdraw</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -346,9 +352,7 @@ export default function HomeScreen() {
             <View className="w-16 h-16 bg-white rounded-2xl justify-center items-center mb-2 shadow-md">
               <Ionicons name="swap-horizontal" size={28} color="#3b82f6" />
             </View>
-            <Text className="text-xs text-gray-700 font-semibold">
-              Transfer
-            </Text>
+            <Text className="text-xs font-bold text-black">Transfer</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -358,7 +362,7 @@ export default function HomeScreen() {
             <View className="w-16 h-16 bg-white rounded-2xl justify-center items-center mb-2 shadow-md">
               <Ionicons name="card" size={28} color="#f97316" />
             </View>
-            <Text className="text-xs text-gray-700 font-semibold">Payment</Text>
+            <Text className="text-xs font-bold text-black">Payment</Text>
           </TouchableOpacity>
         </View>
 
