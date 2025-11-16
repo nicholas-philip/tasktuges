@@ -1,4 +1,4 @@
-// ================== app/(tabs)/deposit.jsx (CLEAN UI VERSION) ==================
+// app/(tabs)/deposit.jsx (FIXED - Network as String)
 import React, { useState } from "react";
 import {
   View,
@@ -13,21 +13,80 @@ import {
   Linking,
 } from "react-native";
 import { usePaystackInitialize, usePaystackVerify } from "../hooks/usePayment";
+import { useGetAccountDetails } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
+import { useFocusEffect } from "expo-router";
 
 export default function DepositScreen() {
   const { user } = useAuthStore();
+  const { data: accountData } = useGetAccountDetails();
 
   const [amount, setAmount] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [network, setNetwork] = useState("MTN");
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [network, setNetwork] = useState("");
+  const [paystackReference, setPaystackReference] = useState(null);
+  const [showNetworkModal, setShowNetworkModal] = useState(false);
+
+  const NETWORKS = [
+    { id: "MTN", name: "MTN" },
+    { id: "VODAFONE", name: "Vodafone" },
+    { id: "TIGO", name: "Tigo" },
+  ];
 
   const { mutate: initializePaystack, isPending: isInitializing } =
     usePaystackInitialize();
   const { mutate: verifyPayment, isPending: isVerifying } = usePaystackVerify();
+
+  // ================== AUTO-LOAD ACCOUNT INFO ON SCREEN FOCUS ==================
+  useFocusEffect(
+    React.useCallback(() => {
+      if (accountData?.account) {
+        const account = accountData.account;
+
+        console.log("📱 Full Account Data:", JSON.stringify(account, null, 2));
+
+        // Get phone number from account
+        if (account.contactInfo?.phoneNumber) {
+          console.log("✅ Phone loaded:", account.contactInfo.phoneNumber);
+          setPhoneNumber(account.contactInfo.phoneNumber);
+        } else {
+          console.log("❌ Phone NOT found in contactInfo");
+        }
+
+        // Extract network from account and ensure it's a string
+        let storedNetwork =
+          account.contactInfo?.network || account.metadata?.network;
+
+        console.log(
+          "🌐 Raw network value:",
+          storedNetwork,
+          "Type:",
+          typeof storedNetwork
+        );
+
+        // Fix: Convert number to network string if needed
+        if (typeof storedNetwork === "number") {
+          const networkArray = ["MTN", "VODAFONE", "TIGO"];
+          storedNetwork = networkArray[storedNetwork];
+          console.log("🔄 Converted network index to string:", storedNetwork);
+        }
+
+        if (
+          storedNetwork &&
+          ["MTN", "VODAFONE", "TIGO"].includes(storedNetwork)
+        ) {
+          console.log("✅ Network auto-filled:", storedNetwork);
+          setNetwork(storedNetwork);
+        } else {
+          console.log("⚠️ Network not valid, defaulting to MTN");
+          setNetwork("MTN");
+        }
+      }
+    }, [accountData])
+  );
 
   // ================== VALIDATION ==================
   const validateInput = () => {
@@ -43,8 +102,13 @@ export default function DepositScreen() {
       return false;
     }
 
-    if (!phoneNumber || phoneNumber.length < 10) {
-      setError("Please enter a valid phone number");
+    if (!phoneNumber) {
+      setError("Phone number not found. Please complete your account setup.");
+      return false;
+    }
+
+    if (!network || !["MTN", "VODAFONE", "TIGO"].includes(network)) {
+      setError("Network not properly set. Please contact support.");
       return false;
     }
 
@@ -57,33 +121,49 @@ export default function DepositScreen() {
 
     const amountInKobo = Math.round(parseFloat(amount) * 100);
 
+    // ENSURE NETWORK IS A STRING
+    let networkToSend = network;
+    if (typeof networkToSend === "number") {
+      const networkArray = ["MTN", "VODAFONE", "TIGO"];
+      networkToSend = networkArray[networkToSend];
+    }
+
+    console.log("💳 Sending deposit request:", {
+      amount: amountInKobo,
+      phoneNumber,
+      network: networkToSend,
+      networkType: typeof networkToSend,
+    });
+
     initializePaystack(
       {
         amount: amountInKobo,
         email: user?.email,
         phoneNumber,
-        network,
+        network: networkToSend, // Send as string
+        paymentMethod: "mobile_money",
+        description: `Deposit to account`,
       },
       {
         onSuccess: (data) => {
+          console.log("✅ Paystack initialized:", data.reference);
           if (data.authorizationUrl) {
+            setPaystackReference(data.reference);
+            setStep(2);
+
             Linking.openURL(data.authorizationUrl).catch(() => {
               Alert.alert("Error", "Could not open payment page.");
             });
 
-            setStep(2);
-
             Alert.alert(
               "Redirecting",
-              "You will be redirected to Paystack to complete payment.",
+              `You will be redirected to Paystack to complete your deposit via ${networkToSend}.`,
               [
                 { text: "Cancel", onPress: () => setStep(1) },
                 {
                   text: "OK",
                   onPress: () => {
-                    setTimeout(() => {
-                      handleVerifyPayment(data.reference);
-                    }, 2000);
+                    console.log("📱 User acknowledged redirection");
                   },
                 },
               ]
@@ -92,7 +172,8 @@ export default function DepositScreen() {
         },
 
         onError: (err) => {
-          Alert.alert("Error", err.message || "Payment initialization failed");
+          console.error("❌ Paystack init error:", err.message);
+          Alert.alert("Error", err.message || "Deposit initialization failed");
         },
       }
     );
@@ -100,66 +181,91 @@ export default function DepositScreen() {
 
   // ================== VERIFY PAYMENT ==================
   const handleVerifyPayment = (reference) => {
-    Alert.alert("Verification", "Did you complete the payment?", [
-      { text: "No", onPress: () => setStep(1) },
-      {
-        text: "Yes, Verify",
-        onPress: () => {
-          verifyPayment(reference, {
-            onSuccess: (data) => {
-              Alert.alert(
-                "Success! 🎉",
-                `Deposit of ₵${amount} completed.\n\nNew Balance: ₵${data.newBalance?.toLocaleString()}`,
-                [
-                  {
-                    text: "Done",
-                    onPress: () => resetForm(),
-                  },
-                ]
-              );
+    console.log("🔄 Verifying deposit payment:", reference);
+
+    verifyPayment(reference, {
+      onSuccess: (data) => {
+        console.log("✅ Deposit verified successfully");
+        Alert.alert(
+          "Success! 🎉",
+          `Deposit of ₵${amount} completed.\n\nNew Balance: ₵${data.newBalance?.toLocaleString()}`,
+          [
+            {
+              text: "Done",
+              onPress: () => {
+                resetForm();
+              },
             },
-            onError: () => {
-              Alert.alert("Error", "Verification failed. Try again.");
-              setStep(1);
-            },
-          });
-        },
+          ]
+        );
       },
-    ]);
+      onError: (err) => {
+        console.error("❌ Verification error:", err.message);
+        Alert.alert(
+          "Verification Failed",
+          "We couldn't verify your deposit. Please try again.",
+          [
+            {
+              text: "Retry",
+              onPress: () => handleVerifyPayment(reference),
+            },
+            {
+              text: "Back",
+              onPress: () => setStep(1),
+            },
+          ]
+        );
+      },
+    });
   };
 
   // ================== RESET FORM ==================
   const resetForm = () => {
     setAmount("");
-    setPhoneNumber("");
-    setNetwork("MTN");
     setError("");
     setStep(1);
+    setPaystackReference(null);
   };
 
-  // ================== STEP 2 SCREEN ==================
+  // ================== STEP 2 SCREEN (PROCESSING) ==================
   if (step === 2) {
     return (
       <View className="flex-1 bg-gray-50 items-center justify-center p-6">
         <View className="bg-white rounded-2xl p-8 items-center w-full max-w-sm">
           <ActivityIndicator size="large" color="#3b82f6" />
           <Text className="text-xl font-bold text-gray-800 mt-6">
-            Processing Payment
+            Processing Deposit
           </Text>
 
           <Text className="text-gray-600 text-center mt-2 text-sm leading-5">
-            You have been redirected to Paystack. Complete the payment on your
-            phone.
+            You have been redirected to Paystack. Complete the deposit on your{" "}
+            {network} line.
           </Text>
 
-          <TouchableOpacity
-            className="mt-8 px-6 py-3 bg-blue-600 rounded-lg w-full"
-            onPress={() => setStep(1)}
-          >
-            <Text className="text-white font-semibold text-center">
-              Back to Form
-            </Text>
-          </TouchableOpacity>
+          <View className="flex-row gap-3 mt-8 w-full">
+            <TouchableOpacity
+              className="flex-1 px-4 py-3 bg-gray-300 rounded-lg"
+              onPress={() => setStep(1)}
+            >
+              <Text className="text-gray-800 font-semibold text-center">
+                Back
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-1 px-4 py-3 bg-blue-600 rounded-lg"
+              onPress={() => handleVerifyPayment(paystackReference)}
+              disabled={isVerifying}
+            >
+              {isVerifying ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-white font-semibold text-center">
+                  Verify Payment
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -176,11 +282,11 @@ export default function DepositScreen() {
           {/* Header */}
           <View className="items-center mb-8 mt-4">
             <Text className="text-2xl font-bold text-gray-800 mb-1">
-              Deposit Funds
+              Add Funds
             </Text>
 
             <Text className="text-gray-600 text-center text-sm px-6 leading-5">
-              Add money to your SkyPay wallet using Mobile Money.
+              Deposit money into your SkyPay wallet using Mobile Money.
             </Text>
           </View>
 
@@ -193,93 +299,122 @@ export default function DepositScreen() {
 
           {/* FORM */}
           <View className="bg-white rounded-2xl shadow p-6 mb-6">
+            {/* Phone Number Display */}
+            {phoneNumber && (
+              <View className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-5">
+                <Text className="text-xs text-blue-600 font-semibold mb-1">
+                  DEPOSIT TO
+                </Text>
+                <Text className="text-lg font-bold text-gray-800">
+                  {phoneNumber}
+                </Text>
+              </View>
+            )}
+
+            {!phoneNumber && (
+              <View className="bg-red-50 border border-red-200 rounded-lg p-4 mb-5">
+                <Text className="text-xs text-red-600 font-semibold mb-1">
+                  ACCOUNT NOT SETUP
+                </Text>
+                <Text className="text-xs text-red-700">
+                  Please complete your account setup with phone number first.
+                </Text>
+              </View>
+            )}
+
+            {/* Network Selection */}
+            {phoneNumber && (
+              <View className="mb-5">
+                <Text className="text-sm font-medium text-gray-700 mb-3">
+                  Mobile Network *
+                </Text>
+                <View className="flex-row gap-3">
+                  {NETWORKS.map((net) => (
+                    <TouchableOpacity
+                      key={net.id}
+                      className={`flex-1 py-3 px-3 rounded-lg border-2 items-center ${
+                        network === net.id
+                          ? "bg-blue-100 border-blue-600"
+                          : "bg-white border-gray-300"
+                      }`}
+                      onPress={() => setNetwork(net.id)}
+                    >
+                      <Text
+                        className={`text-sm font-semibold ${
+                          network === net.id ? "text-blue-600" : "text-gray-700"
+                        }`}
+                      >
+                        {net.name}
+                      </Text>
+                      {network === net.id && (
+                        <Text className="text-lg mt-1">✅</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {/* Amount */}
             <View className="mb-5">
               <Text className="text-sm font-medium text-gray-700 mb-2">
-                Amount (GHS) *
+                Amount to Deposit (GHS) *
               </Text>
 
-              <TextInput
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="100.00"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="decimal-pad"
-              />
+              <View className="flex-row items-center border-2 border-gray-300 rounded-lg px-4 py-3">
+                <Text className="text-2xl font-bold text-gray-800 mr-2">₵</Text>
+                <TextInput
+                  className="flex-1 text-2xl font-bold text-gray-900"
+                  value={amount}
+                  onChangeText={setAmount}
+                  placeholder="100.00"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="decimal-pad"
+                  editable={!!phoneNumber && !!network}
+                />
+              </View>
 
-              <Text className="text-xs text-gray-500 mt-1">
+              <Text className="text-xs text-gray-500 mt-2">
                 Min ₵1.00 • Max ₵10,000,000
               </Text>
             </View>
 
-            {/* Phone Number */}
-            <View className="mb-5">
-              <Text className="text-sm font-medium text-gray-700 mb-2">
-                Phone Number (+233...) *
-              </Text>
-
-              <TextInput
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                placeholder="+233501234567"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad"
-              />
-            </View>
-
-            {/* Network */}
-            <View className="mb-6">
-              <Text className="text-sm font-medium text-gray-700 mb-2">
-                Mobile Network *
-              </Text>
-
-              <View className="flex-row gap-3">
-                {["MTN", "VODAFONE", "TIGO"].map((net) => (
-                  <TouchableOpacity
-                    key={net}
-                    className={`flex-1 px-4 py-3 rounded-lg border ${
-                      network === net
-                        ? "bg-blue-600 border-blue-600"
-                        : "bg-white border-gray-300"
-                    }`}
-                    onPress={() => setNetwork(net)}
-                  >
-                    <Text
-                      className={`text-center font-semibold text-sm ${
-                        network === net ? "text-white" : "text-gray-700"
-                      }`}
-                    >
-                      {net}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
             {/* Info Box */}
-            <View className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <View className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
               <Text className="text-blue-900 text-sm font-medium">
                 ℹ️ How it works:
               </Text>
 
               <Text className="text-blue-800 text-xs mt-2 leading-5">
                 1. Enter deposit amount{"\n"}
-                2. Enter your MoMo number{"\n"}
-                3. Tap Pay Now{"\n"}
-                4. Approve the prompt on your {network} line
+                2. Tap "Deposit Now"{"\n"}
+                3. You'll be taken to Paystack{"\n"}
+                4. Approve the payment on your {network || "mobile"} line{"\n"}
+                5. Return and tap "Verify Payment"{"\n"}
+                6. Funds appear instantly in your account
               </Text>
             </View>
           </View>
 
-          {/* PAY BUTTON */}
+          {/* DEPOSIT BUTTON */}
           <TouchableOpacity
-            className={`py-4 rounded-full ${
-              isInitializing || isVerifying ? "bg-gray-400" : "bg-green-600"
+            className={`py-4 rounded-full mb-3 ${
+              isInitializing ||
+              isVerifying ||
+              !phoneNumber ||
+              !network ||
+              !amount
+                ? "bg-gray-400"
+                : "bg-green-600"
             }`}
             onPress={handleInitializePayment}
-            disabled={isInitializing || isVerifying}
+            disabled={
+              isInitializing ||
+              isVerifying ||
+              !phoneNumber ||
+              !network ||
+              !amount
+            }
           >
             {isInitializing ? (
               <View className="flex-row justify-center items-center">
@@ -290,14 +425,30 @@ export default function DepositScreen() {
               </View>
             ) : (
               <Text className="text-white text-base font-bold text-center">
-                Pay Now
+                Deposit Now
               </Text>
             )}
           </TouchableOpacity>
 
-          <Text className="text-center text-gray-500 text-xs mt-5">
-            Payments powered securely by Paystack
+          <Text className="text-center text-gray-500 text-xs mb-8">
+            Secure payment powered by Paystack
           </Text>
+
+          {/* Security Info */}
+          <View className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <View className="flex-row">
+              <Text className="text-xl mr-3">🔒</Text>
+              <View className="flex-1">
+                <Text className="text-blue-900 font-semibold text-sm">
+                  Your deposit is secure
+                </Text>
+                <Text className="text-blue-800 text-xs mt-1">
+                  All deposits are encrypted and protected by industry-leading
+                  security standards.
+                </Text>
+              </View>
+            </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeScreen>

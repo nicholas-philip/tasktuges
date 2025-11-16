@@ -1,4 +1,4 @@
-// src/(tabs)/utils/payment.jsx - UPDATED WITH PAYSTACK
+// src/(tabs)/utils/payment.jsx - COMPLETE FIX
 import React, { useState, useRef } from "react";
 import {
   View,
@@ -9,16 +9,19 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  Linking,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
-import { PaystackWebView } from "react-native-paystack-webview";
 
-import { usePaystackInitialize, useInitiatePayment } from "../hooks/usePayment";
+import {
+  usePaystackInitialize,
+  useVerifyCardPayment,
+} from "../hooks/usePayment";
 import { useGetBalance } from "../hooks/useWallet";
 import { useGetAccountDetails } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
-import SafeScreen from "../../components/SafeScreen";
 
 const PAYMENT_RECIPIENTS = [
   {
@@ -104,7 +107,6 @@ const NETWORKS = [
 export default function PaymentScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const paystackWebViewRef = useRef();
 
   const [selectedRecipient, setSelectedRecipient] = useState(null);
   const [selectedMethod, setSelectedMethod] = useState("wallet");
@@ -114,34 +116,39 @@ export default function PaymentScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [isCustomRecipient, setIsCustomRecipient] = useState(false);
-
-  // Mobile Money States
   const [showMobileMoneyModal, setShowMobileMoneyModal] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [selectedNetwork, setSelectedNetwork] = useState(null);
-  const [showPaystack, setShowPaystack] = useState(false);
   const [paystackReference, setPaystackReference] = useState(null);
+  const [pendingVerification, setPendingVerification] = useState(false);
 
-  const { mutate: initiatePayment, isPending } = useInitiatePayment();
   const { mutate: initializePaystack, isPending: isPaystackInitializing } =
     usePaystackInitialize();
+  const { mutate: verifyCardPayment, isPending: isVerifying } =
+    useVerifyCardPayment();
   const { data: balanceData, refetch: refetchBalance } = useGetBalance();
   const { data: account, refetch: refetchAccount } = useGetAccountDetails();
 
-  // Refresh data when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
       refetchBalance();
       refetchAccount();
       console.log("🔄 Payment screen refreshed");
-    }, [refetchBalance, refetchAccount])
+
+      // Auto-verify if there's a pending payment when screen comes into focus
+      if (pendingVerification && paystackReference) {
+        console.log("🔍 Auto-verifying pending payment on focus");
+        const recipientName = isCustomRecipient
+          ? customName
+          : selectedRecipient?.name;
+        handlePaymentVerification(paystackReference, recipientName);
+      }
+    }, [refetchBalance, refetchAccount, pendingVerification, paystackReference])
   );
 
-  // Clear form when screen loses focus (user leaves)
   useFocusEffect(
     React.useCallback(() => {
       return () => {
-        // This runs when screen loses focus
         resetForm();
         console.log("🗑️ Payment form cleared");
       };
@@ -156,26 +163,20 @@ export default function PaymentScreen() {
   const isValidRecipient =
     selectedRecipient !== null || (isCustomRecipient && customName?.trim());
 
-  console.log("🔍 Payment Form State:", {
-    amount,
-    isValidAmount,
-    selectedRecipient: selectedRecipient?.name,
-    isCustomRecipient,
-    customName,
-    isValidRecipient,
-    agreedToTerms,
-    balance,
-    amountExceedsBalance: parseFloat(amount) > balance,
-  });
-
   const formatAmount = (val) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: account?.currency || "USD",
+      currency: account?.currency || "GHS",
     }).format(parseFloat(val) || 0);
   };
 
   const handleMobileMoneyInitiate = () => {
+    // Prevent multiple clicks
+    if (isPaystackInitializing) {
+      console.log("⏳ Already initializing, please wait...");
+      return;
+    }
+
     if (phoneNumber.length !== 9) {
       Alert.alert("Error", "Phone number must be 9 digits");
       return;
@@ -185,24 +186,61 @@ export default function PaymentScreen() {
       return;
     }
 
-    // Initialize Paystack payment
+    const recipientName = isCustomRecipient
+      ? customName
+      : selectedRecipient.name;
+    const fullPhoneNumber = `+233${phoneNumber}`;
+
+    console.log("🚀 Initiating mobile money payment:", {
+      amount: parseFloat(amount),
+      network: selectedNetwork,
+      phone: fullPhoneNumber,
+      recipient: recipientName,
+    });
+
     initializePaystack(
       {
         amount: parseFloat(amount),
         email: user?.email || `user_${user?.id}@tasktuges.app`,
-        phoneNumber: `+233${phoneNumber}`,
+        phoneNumber: fullPhoneNumber,
         network: selectedNetwork,
-        recipient: isCustomRecipient ? customName : selectedRecipient.name,
-        description:
-          description ||
-          `Payment to ${isCustomRecipient ? customName : selectedRecipient.name}`,
+        paymentMethod: "mobile_money",
+        recipient: {
+          name: recipientName,
+        },
+        description: description || `Payment to ${recipientName}`,
       },
       {
         onSuccess: (data) => {
+          console.log("✅ Mobile money initialized:", data.reference);
           setPaystackReference(data.reference);
-          setShowPaystack(true);
+          setShowMobileMoneyModal(false);
+          setPendingVerification(true); // Set pending flag
+
+          // Open Paystack in external browser
+          if (data.authorizationUrl) {
+            Linking.openURL(data.authorizationUrl);
+
+            Alert.alert(
+              "Complete Payment",
+              "Complete your payment in the browser. When done, return to this app to verify.",
+              [
+                {
+                  text: "Cancel",
+                  style: "cancel",
+                  onPress: () => setPendingVerification(false),
+                },
+                {
+                  text: "I've Paid - Verify Now",
+                  onPress: () =>
+                    handlePaymentVerification(data.reference, recipientName),
+                },
+              ]
+            );
+          }
         },
         onError: (error) => {
+          console.error("❌ Mobile money init failed:", error);
           Alert.alert(
             "Error",
             error?.message || "Failed to initialize payment"
@@ -212,45 +250,53 @@ export default function PaymentScreen() {
     );
   };
 
-  const handlePaystackSuccess = (res) => {
-    const recipientName = isCustomRecipient
-      ? customName
-      : selectedRecipient.name;
+  const handlePaymentVerification = (reference, recipientName) => {
+    console.log("🔍 Verifying payment:", reference);
+    setPendingVerification(false); // Clear pending flag
 
-    // Verify payment with backend
-    initiatePayment(
-      {
-        reference: paystackReference,
-        phoneNumber: `+233${phoneNumber}`,
-        network: selectedNetwork,
-        paymentMethod: "mobile_money",
-        recipient: {
-          name: recipientName,
-        },
-        description: description || `Payment to ${recipientName}`,
-      },
-      {
-        onSuccess: () => {
-          Alert.alert(
-            "Success",
-            `Payment of ${formatAmount(amount)} to ${recipientName} completed!`,
-            [
-              {
-                text: "OK",
-                onPress: () => {
-                  resetForm();
-                  router.back();
-                },
+    verifyCardPayment(reference, {
+      onSuccess: (data) => {
+        console.log("✅ Payment verified and saved:", data);
+
+        Alert.alert(
+          "Success",
+          `Payment of ${formatAmount(amount)} to ${recipientName} completed successfully!`,
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                resetForm();
+                refetchBalance();
+                router.back();
               },
-            ]
-          );
-        },
-        onError: (error) => {
-          Alert.alert("Error", error?.message || "Failed to save payment.");
-          setShowPaystack(false);
-        },
-      }
-    );
+            },
+          ]
+        );
+      },
+      onError: (error) => {
+        console.error("❌ Payment verification failed:", error);
+        Alert.alert(
+          "Payment Status",
+          error?.message ||
+            "Payment not yet completed. Please complete the payment in your browser first, then try again.",
+          [
+            {
+              text: "Try Again",
+              onPress: () =>
+                handlePaymentVerification(reference, recipientName),
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+              onPress: () => {
+                setPendingVerification(false);
+                setPaystackReference(null);
+              },
+            },
+          ]
+        );
+      },
+    });
   };
 
   const resetForm = () => {
@@ -262,12 +308,18 @@ export default function PaymentScreen() {
     setIsCustomRecipient(false);
     setPhoneNumber("");
     setSelectedNetwork(null);
-    setShowPaystack(false);
     setPaystackReference(null);
     setShowMobileMoneyModal(false);
+    setPendingVerification(false);
   };
 
   const handlePayment = () => {
+    // Prevent multiple clicks
+    if (isPaystackInitializing || isVerifying) {
+      console.log("⏳ Already processing, please wait...");
+      return;
+    }
+
     if (!isValidRecipient) {
       Alert.alert(
         "Invalid Recipient",
@@ -281,7 +333,8 @@ export default function PaymentScreen() {
       return;
     }
 
-    if (parseFloat(amount) > balance) {
+    // ✅ Check balance for wallet payments
+    if (selectedMethod === "wallet" && parseFloat(amount) > balance) {
       Alert.alert(
         "Insufficient Balance",
         `Your balance (${formatAmount(balance)}) is less than the payment amount.`
@@ -297,16 +350,71 @@ export default function PaymentScreen() {
       return;
     }
 
-    // If mobile money, show mobile money modal
     if (selectedMethod === "mobile_money") {
       setShowMobileMoneyModal(true);
       return;
     }
 
-    // For wallet and card, use Paystack
     const recipientName = isCustomRecipient
       ? customName
       : selectedRecipient.name;
+
+    // ✅ FOR WALLET PAYMENTS: Skip Paystack, process directly
+    if (selectedMethod === "wallet") {
+      console.log("💰 Processing wallet payment directly");
+
+      Alert.alert(
+        "Confirm Payment",
+        `Pay ${formatAmount(amount)} to ${recipientName} from your wallet?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Pay Now",
+            onPress: () => {
+              // Generate a reference for the wallet payment
+              const walletReference = `WALLET-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+              // Directly verify (which processes the payment)
+              verifyCardPayment(walletReference, {
+                onSuccess: (data) => {
+                  console.log("✅ Wallet payment completed:", data);
+
+                  Alert.alert(
+                    "Success",
+                    `Payment of ${formatAmount(amount)} to ${recipientName} completed successfully!`,
+                    [
+                      {
+                        text: "OK",
+                        onPress: () => {
+                          resetForm();
+                          refetchBalance();
+                          router.back();
+                        },
+                      },
+                    ]
+                  );
+                },
+                onError: (error) => {
+                  console.error("❌ Wallet payment failed:", error);
+                  Alert.alert(
+                    "Payment Failed",
+                    error?.message || "Failed to complete payment."
+                  );
+                },
+              });
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // ✅ FOR CARD PAYMENTS: Use Paystack in external browser
+    console.log("🚀 Initiating card payment via Paystack:", {
+      amount: parseFloat(amount),
+      method: selectedMethod,
+      recipient: recipientName,
+    });
 
     initializePaystack(
       {
@@ -320,10 +428,34 @@ export default function PaymentScreen() {
       },
       {
         onSuccess: (data) => {
+          console.log("✅ Payment initialized:", data.reference);
           setPaystackReference(data.reference);
-          setShowPaystack(true);
+          setPendingVerification(true); // Set pending flag
+
+          // Open Paystack in external browser
+          if (data.authorizationUrl) {
+            Linking.openURL(data.authorizationUrl);
+
+            Alert.alert(
+              "Complete Payment",
+              "Complete your payment in the browser. When done, return to this app to verify.",
+              [
+                {
+                  text: "Cancel",
+                  style: "cancel",
+                  onPress: () => setPendingVerification(false),
+                },
+                {
+                  text: "I've Paid - Verify Now",
+                  onPress: () =>
+                    handlePaymentVerification(data.reference, recipientName),
+                },
+              ]
+            );
+          }
         },
         onError: (error) => {
+          console.error("❌ Payment init failed:", error);
           Alert.alert(
             "Error",
             error?.message || "Failed to initialize payment"
@@ -338,38 +470,23 @@ export default function PaymentScreen() {
     setAmount(numericText);
   };
 
+  const handlePhoneChange = (text) => {
+    const numericText = text.replace(/[^0-9]/g, "");
+    setPhoneNumber(numericText);
+  };
+
   const handleSelectRecipient = (recipient) => {
     setSelectedRecipient(recipient);
     setIsCustomRecipient(false);
     setShowRecipientModal(false);
   };
 
-  if (showPaystack && paystackReference) {
-    return (
-      <PaystackWebView
-        paystackKey="pk_live_YOUR_PUBLIC_KEY_HERE"
-        amount={parseFloat(amount) * 100}
-        billingEmail={user?.email || `user_${user?.id}@tasktuges.app`}
-        billingMobile={
-          selectedMethod === "mobile_money" ? `+233${phoneNumber}` : undefined
-        }
-        billingName={user?.name || "User"}
-        channels={
-          selectedMethod === "mobile_money" ? ["mobile_money"] : ["card"]
-        }
-        onCancel={() => {
-          Alert.alert("Cancelled", "Payment was cancelled");
-          setShowPaystack(false);
-        }}
-        onSuccess={handlePaystackSuccess}
-        ref={paystackWebViewRef}
-      />
-    );
-  }
-
   return (
-    <SafeScreen>
-      <ScrollView className="flex-1 bg-gray-50 pt-8">
+    <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1 }}>
+      <ScrollView
+        className="flex-1 bg-gray-50"
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
         <View className="flex-row items-center justify-between px-5 pt-4 pb-3">
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={28} color="#007AFF" />
@@ -386,6 +503,52 @@ export default function PaymentScreen() {
             {formatAmount(balance)}
           </Text>
         </View>
+
+        {pendingVerification && paystackReference && (
+          <View className="mx-5 mb-5 p-4 bg-orange-50 rounded-xl border-2 border-orange-400">
+            <View className="flex-row items-center mb-3">
+              <Ionicons
+                name="time"
+                size={20}
+                color="#ea580c"
+                style={{ marginRight: 8 }}
+              />
+              <Text className="text-sm font-bold text-orange-800">
+                Payment Pending Verification
+              </Text>
+            </View>
+            <Text className="text-xs text-orange-700 mb-3">
+              You have a payment waiting to be verified. Complete it in your
+              browser, then verify below.
+            </Text>
+            <TouchableOpacity
+              className="bg-orange-600 p-3 rounded-xl flex-row items-center justify-center"
+              onPress={() => {
+                const recipientName = isCustomRecipient
+                  ? customName
+                  : selectedRecipient?.name;
+                handlePaymentVerification(paystackReference, recipientName);
+              }}
+              disabled={isVerifying}
+            >
+              {isVerifying ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={18}
+                    color="#fff"
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text className="text-white font-bold">
+                    Check Payment Status
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         {selectedRecipient && (
           <View className="mx-5 mb-6 p-4 bg-green-50 rounded-xl border-2 border-green-200">
@@ -533,9 +696,7 @@ export default function PaymentScreen() {
             <Text className="text-sm font-semibold text-gray-700 mb-3">
               Recipient Name
             </Text>
-
             <View className="mb-4">
-              <Text className="text-xs text-gray-600 mb-2">Name</Text>
               <View className="flex-row items-center border-2 border-gray-200 rounded-xl px-4 py-3">
                 <Ionicons
                   name="person"
@@ -552,7 +713,6 @@ export default function PaymentScreen() {
                 />
               </View>
             </View>
-
             <TouchableOpacity
               className="mt-3 p-2"
               onPress={() => {
@@ -584,7 +744,7 @@ export default function PaymentScreen() {
               onChangeText={handleAmountChange}
             />
           </View>
-          {amount && (
+          {amount && selectedMethod === "wallet" && (
             <View className="mt-3 flex-row justify-between">
               <Text className="text-sm text-gray-600">
                 Amount: {formatAmount(amount)}
@@ -680,8 +840,8 @@ export default function PaymentScreen() {
               isValidAmount &&
               isValidRecipient &&
               agreedToTerms &&
-              !isPending &&
-              !isPaystackInitializing
+              !isPaystackInitializing &&
+              !isVerifying
                 ? "bg-green-500"
                 : "bg-gray-300"
             }`}
@@ -690,11 +850,11 @@ export default function PaymentScreen() {
               !isValidAmount ||
               !isValidRecipient ||
               !agreedToTerms ||
-              isPending ||
-              isPaystackInitializing
+              isPaystackInitializing ||
+              isVerifying
             }
           >
-            {isPending || isPaystackInitializing ? (
+            {isPaystackInitializing || isVerifying ? (
               <>
                 <ActivityIndicator
                   color="#fff"
@@ -781,20 +941,29 @@ export default function PaymentScreen() {
                     </Text>
                     <TextInput
                       className="flex-1 text-base text-gray-900"
-                      placeholder="24XXXXXXXX"
+                      placeholder="501234567"
                       keyboardType="phone-pad"
                       maxLength={9}
                       value={phoneNumber}
-                      onChangeText={setPhoneNumber}
+                      onChangeText={handlePhoneChange}
                     />
+                    {phoneNumber && phoneNumber.length === 9 && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color="#22c55e"
+                      />
+                    )}
                   </View>
+                  <Text className="text-xs text-gray-500 mt-2">
+                    Enter 9 digits (without +233)
+                  </Text>
                 </View>
 
                 <TouchableOpacity
                   className={`p-4 rounded-xl items-center ${
                     phoneNumber.length === 9 &&
                     selectedNetwork &&
-                    !isPending &&
                     !isPaystackInitializing
                       ? "bg-blue-600"
                       : "bg-gray-300"
@@ -803,11 +972,10 @@ export default function PaymentScreen() {
                   disabled={
                     phoneNumber.length !== 9 ||
                     !selectedNetwork ||
-                    isPending ||
                     isPaystackInitializing
                   }
                 >
-                  {isPending || isPaystackInitializing ? (
+                  {isPaystackInitializing ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <Text className="text-white font-bold text-lg">
@@ -848,6 +1016,6 @@ export default function PaymentScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeScreen>
+    </SafeAreaView>
   );
 }
