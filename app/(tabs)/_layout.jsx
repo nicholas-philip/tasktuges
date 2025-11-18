@@ -1,24 +1,38 @@
-// src/(tabs)/_layout.jsx
+// ================== src/(tabs)/_layout.jsx - WITH THEME ==================
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME
 
 export default function TabLayout() {
+  const { colors, isDarkMode } = useTheme(); // ✅ GET THEME
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#3b82f6",
-        tabBarInactiveTintColor: "#9ca3af",
+        tabBarActiveTintColor: colors.primary, // ✅ USE THEME PRIMARY COLOR
+        tabBarInactiveTintColor: colors.textTertiary, // ✅ USE THEME TERTIARY TEXT COLOR
+        tabBarStyle: {
+          backgroundColor: colors.card, // ✅ USE THEME CARD COLOR
+          borderTopColor: colors.border, // ✅ USE THEME BORDER COLOR
+          borderTopWidth: 1,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "600",
+          height: 30,
+        },
       }}
     >
       {/* Home tab */}
       <Tabs.Screen
         name="index"
         options={{
-          title: "index",
+          title: "Home",
           tabBarIcon: ({ color }) => (
             <Ionicons name="home-sharp" size={24} color={color} />
           ),
+          tabBarLabel: "Home",
         }}
       />
 
@@ -38,6 +52,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <Ionicons name="wallet" size={24} color={color} />
           ),
+          tabBarLabel: "Wallet",
         }}
       />
 
@@ -47,8 +62,9 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="person-outline" size={22} color="black" />
+            <Ionicons name="person-outline" size={22} color={color} />
           ),
+          tabBarLabel: "Profile",
         }}
       />
 

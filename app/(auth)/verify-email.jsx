@@ -1,4 +1,4 @@
-// ================== app/(auth)/verify-email.jsx (UPDATED) ==================
+// ================== app/(auth)/verify-email.jsx - WITH THEME ==================
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -16,9 +16,11 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
+import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME
 
 export default function VerifyEmail() {
   const router = useRouter();
+  const { colors, isDarkMode } = useTheme(); // ✅ GET THEME
   const { email: paramEmail } = useLocalSearchParams();
 
   const [code, setCode] = useState("");
@@ -46,7 +48,6 @@ export default function VerifyEmail() {
     if (user?.emailVerified) {
       console.log("✅ [VerifyEmail] Email verified successfully");
 
-      // Check if account setup is required
       const needsSetup =
         !user.profileCompleted ||
         user.account?.status === "pending" ||
@@ -83,7 +84,6 @@ export default function VerifyEmail() {
 
     if (result.success) {
       console.log("✅ [VerifyEmail] Verification successful");
-      // ✅ Navigation happens automatically via useEffect when emailVerified updates
     } else {
       Alert.alert("Verification Failed", result.message || "Invalid code");
     }
@@ -126,7 +126,8 @@ export default function VerifyEmail() {
   return (
     <SafeScreen>
       <KeyboardAvoidingView
-        className="flex-1 bg-white"
+        className="flex-1"
+        style={{ backgroundColor: colors.background }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
       >
@@ -142,13 +143,19 @@ export default function VerifyEmail() {
                 className="w-16 h-16 mb-4"
                 resizeMode="contain"
               />
-              <Text className="text-3xl font-bold text-gray-800 text-center">
+              <Text
+                className="text-3xl font-bold text-center"
+                style={{ color: colors.text }}
+              >
                 Verify Email
               </Text>
             </View>
 
             {/* Description */}
-            <Text className="text-center text-gray-600 text-base leading-6">
+            <Text
+              className="text-center text-base leading-6"
+              style={{ color: colors.textSecondary }}
+            >
               We have sent a 4-digit verification code to your email
             </Text>
           </View>
@@ -156,10 +163,19 @@ export default function VerifyEmail() {
           {/* Main Content */}
           <View className="flex-1 px-6">
             {/* Email Display */}
-            <View className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+            <View
+              className="rounded-xl p-4 mb-6 border"
+              style={{
+                backgroundColor: colors.primaryLight,
+                borderColor: colors.primary,
+              }}
+            >
               <View className="flex-row items-center">
-                <Ionicons name="mail" size={20} color="#3b82f6" />
-                <Text className="text-gray-700 font-semibold ml-3 flex-1">
+                <Ionicons name="mail" size={20} color={colors.primary} />
+                <Text
+                  className="font-semibold ml-3 flex-1"
+                  style={{ color: colors.text }}
+                >
                   {email}
                 </Text>
               </View>
@@ -167,10 +183,23 @@ export default function VerifyEmail() {
 
             {/* Error Message */}
             {error && (
-              <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-6">
+              <View
+                className="rounded-lg px-4 py-3 mb-6 border"
+                style={{
+                  backgroundColor: colors.errorLight,
+                  borderColor: colors.error,
+                }}
+              >
                 <View className="flex-row items-center">
-                  <Ionicons name="alert-circle" size={20} color="#ef4444" />
-                  <Text className="text-red-700 text-sm ml-3 flex-1">
+                  <Ionicons
+                    name="alert-circle"
+                    size={20}
+                    color={colors.error}
+                  />
+                  <Text
+                    className="text-sm ml-3 flex-1"
+                    style={{ color: colors.error }}
+                  >
                     {error}
                   </Text>
                 </View>
@@ -179,20 +208,31 @@ export default function VerifyEmail() {
 
             {/* Code Input */}
             <View className="mb-6">
-              <Text className="text-sm font-semibold text-gray-700 mb-3">
+              <Text
+                className="text-sm font-semibold mb-3"
+                style={{ color: colors.text }}
+              >
                 Enter Verification Code
               </Text>
               <TextInput
-                className="w-full px-4 py-4 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 text-center text-lg font-bold tracking-widest"
+                className="w-full px-4 py-4 rounded-xl text-center text-lg font-bold tracking-widest border-2"
+                style={{
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.inputBorder,
+                  color: colors.text,
+                }}
                 value={code}
                 onChangeText={setCode}
                 placeholder="000000"
-                placeholderTextColor="#d1d5db"
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="number-pad"
                 maxLength={6}
                 editable={!isLoading && !isResending}
               />
-              <Text className="text-xs text-gray-500 mt-2 text-center">
+              <Text
+                className="text-xs mt-2 text-center"
+                style={{ color: colors.textSecondary }}
+              >
                 Check your email inbox (and spam folder)
               </Text>
             </View>
@@ -202,11 +242,13 @@ export default function VerifyEmail() {
               activeOpacity={0.8}
               onPress={handleVerify}
               disabled={isLoading || !code || code.length < 4}
-              className={`w-full py-4 rounded-lg items-center mb-3 ${
-                isLoading || !code || code.length < 4
-                  ? "bg-gray-300"
-                  : "bg-blue-600"
-              }`}
+              className="w-full py-4 rounded-lg items-center mb-3"
+              style={{
+                backgroundColor:
+                  isLoading || !code || code.length < 4
+                    ? colors.textTertiary
+                    : colors.primary,
+              }}
             >
               {isLoading ? (
                 <View className="flex-row items-center">
@@ -229,9 +271,10 @@ export default function VerifyEmail() {
               className="w-full py-3 mb-4"
             >
               <Text
-                className={`text-center font-semibold ${
-                  canResend ? "text-blue-600" : "text-gray-400"
-                }`}
+                className="text-center font-semibold"
+                style={{
+                  color: canResend ? colors.primary : colors.textTertiary,
+                }}
               >
                 {isResending
                   ? "Resending..."
@@ -242,7 +285,10 @@ export default function VerifyEmail() {
             </TouchableOpacity>
 
             {/* Divider */}
-            <View className="h-px bg-gray-200 my-4" />
+            <View
+              className="h-px my-4"
+              style={{ backgroundColor: colors.border }}
+            />
 
             {/* Change Email */}
             <TouchableOpacity
@@ -251,8 +297,11 @@ export default function VerifyEmail() {
               className="py-3"
             >
               <View className="flex-row items-center justify-center">
-                <Ionicons name="arrow-back" size={18} color="#6366f1" />
-                <Text className="text-indigo-600 font-semibold ml-2">
+                <Ionicons name="arrow-back" size={18} color={colors.primary} />
+                <Text
+                  className="font-semibold ml-2"
+                  style={{ color: colors.primary }}
+                >
                   Wrong email? Go back
                 </Text>
               </View>
@@ -261,10 +310,16 @@ export default function VerifyEmail() {
 
           {/* Footer Info */}
           <View className="px-6 py-8 items-center">
-            <Text className="text-xs text-gray-500 text-center">
+            <Text
+              className="text-xs text-center"
+              style={{ color: colors.textSecondary }}
+            >
               🔒 Code expires in 10 minutes
             </Text>
-            <Text className="text-xs text-gray-500 text-center mt-2">
+            <Text
+              className="text-xs text-center mt-2"
+              style={{ color: colors.textSecondary }}
+            >
               Keep your verification code private
             </Text>
           </View>

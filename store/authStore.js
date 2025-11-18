@@ -1,4 +1,4 @@
-// ================== store/authStore.js (FIXED WITH BETTER ERROR HANDLING) ==================
+// ================== store/authStore.js ==================
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -47,9 +47,6 @@ export const useAuthStore = create((set, get) => ({
         throw new Error("Email and password are required");
       }
 
-      console.log("🔗 Logging in user:", email);
-      console.log("📍 Full URL:", `${API_URL}/auth/login`);
-
       const response = await fetchWithTimeout(
         `${API_URL}/auth/login`,
         {
@@ -60,12 +57,8 @@ export const useAuthStore = create((set, get) => ({
         60000
       );
 
-      console.log("📊 Response status:", response.status);
-      console.log("📊 Response headers:", response.headers);
-
       // ✅ FIX: Check content type before parsing
       const contentType = response.headers.get("content-type");
-      console.log("📝 Content-Type:", contentType);
 
       let data;
 
@@ -74,17 +67,10 @@ export const useAuthStore = create((set, get) => ({
       } else {
         // Not JSON, likely HTML error page
         const text = await response.text();
-        console.error("❌ Non-JSON response received:");
-        console.error(
-          "📄 Response text (first 500 chars):",
-          text.substring(0, 500)
-        );
         throw new Error(
           `Server returned ${response.status} - Check backend logs for errors`
         );
       }
-
-      console.log("📦 Response data:", data);
 
       if (!response.ok) {
         throw new Error(data?.message || `Login failed: ${response.status}`);
@@ -111,7 +97,6 @@ export const useAuthStore = create((set, get) => ({
         error: null,
       });
 
-      console.log("✅ Login successful:", data.user.email);
       return {
         success: true,
         user: {
@@ -122,7 +107,6 @@ export const useAuthStore = create((set, get) => ({
     } catch (error) {
       const message = error.message || "Network request failed";
       set({ isLoading: false, error: message });
-      console.error("❌ Login error:", message);
       return { success: false, message };
     }
   },
@@ -141,9 +125,6 @@ export const useAuthStore = create((set, get) => ({
         throw new Error("Password must be at least 6 characters");
       }
 
-      console.log("🔗 Registering user:", username);
-      console.log("📍 Full URL:", `${API_URL}/auth/register`);
-
       const response = await fetchWithTimeout(
         `${API_URL}/auth/register`,
         {
@@ -154,8 +135,6 @@ export const useAuthStore = create((set, get) => ({
         60000
       );
 
-      console.log("📊 Response status:", response.status);
-
       const contentType = response.headers.get("content-type");
       let data;
 
@@ -163,13 +142,10 @@ export const useAuthStore = create((set, get) => ({
         data = await response.json();
       } else {
         const text = await response.text();
-        console.error("❌ Non-JSON response:", text.substring(0, 500));
         throw new Error(
           `Server returned ${response.status} - Check backend logs`
         );
       }
-
-      console.log("📦 Response data:", data);
 
       if (!response.ok) {
         throw new Error(
@@ -198,7 +174,6 @@ export const useAuthStore = create((set, get) => ({
         error: null,
       });
 
-      console.log("✅ Registration successful:", data.user.email);
       return {
         success: true,
         user: {
@@ -209,7 +184,6 @@ export const useAuthStore = create((set, get) => ({
     } catch (error) {
       const message = error.message || "Network request failed";
       set({ isLoading: false, error: message });
-      console.error("❌ Registration error:", message);
       return { success: false, message };
     }
   },
@@ -222,8 +196,6 @@ export const useAuthStore = create((set, get) => ({
         throw new Error("Email and verification code are required");
       }
 
-      console.log("🔗 Verifying email:", email);
-
       const response = await fetchWithTimeout(
         `${API_URL}/auth/verify-email`,
         {
@@ -233,8 +205,6 @@ export const useAuthStore = create((set, get) => ({
         },
         60000
       );
-
-      console.log("📊 Response status:", response.status);
 
       const contentType = response.headers.get("content-type");
       let data;
@@ -263,7 +233,6 @@ export const useAuthStore = create((set, get) => ({
         error: null,
       });
 
-      console.log("✅ Email verified successfully!");
       return {
         success: true,
         user: updatedUser,
@@ -271,7 +240,6 @@ export const useAuthStore = create((set, get) => ({
     } catch (error) {
       const message = error.message || "Email verification failed";
       set({ isLoading: false, error: message });
-      console.error("❌ Email verification error:", message);
       return { success: false, message };
     }
   },
@@ -279,9 +247,6 @@ export const useAuthStore = create((set, get) => ({
   // ✅ RESEND VERIFICATION CODE
   resendVerificationCode: async (email) => {
     set({ isLoading: true, error: null });
-
-    const startTime = Date.now();
-    console.log("⏱️ [RESEND] Request started at:", new Date().toISOString());
 
     try {
       if (!email) {
@@ -300,10 +265,6 @@ export const useAuthStore = create((set, get) => ({
         60000
       );
 
-      const duration = Date.now() - startTime;
-      console.log(`⏱️ [RESEND] Request completed in ${duration}ms`);
-      console.log("📊 [RESEND] Response status:", response.status);
-
       const contentType = response.headers.get("content-type");
       let data;
 
@@ -318,16 +279,12 @@ export const useAuthStore = create((set, get) => ({
       }
 
       set({ isLoading: false, error: null });
-      console.log("✅ [RESEND] Code resent to:", email);
 
       return {
         success: true,
         message: data?.message || "Verification code resent successfully",
       };
     } catch (error) {
-      const duration = Date.now() - startTime;
-      console.error(`❌ [RESEND] Failed after ${duration}ms:`, error.message);
-
       let userMessage = error.message || "Failed to resend verification code";
 
       set({ isLoading: false, error: userMessage });
@@ -369,7 +326,6 @@ export const useAuthStore = create((set, get) => ({
       return { success: true, user: data.user, account: data.account };
     } catch (error) {
       set({ isLoading: false, error: error.message });
-      console.error("❌ [getCurrentUser] Error:", error.message);
       return { success: false, message: error.message };
     }
   },
@@ -378,8 +334,6 @@ export const useAuthStore = create((set, get) => ({
   checkAuth: async () => {
     set({ isLoading: true });
     try {
-      console.log("🔍 [checkAuth] Starting auth check...");
-
       const [userJson, accountJson, token] = await AsyncStorage.multiGet([
         "user",
         "account",
@@ -391,12 +345,10 @@ export const useAuthStore = create((set, get) => ({
 
       if (userJson[1]) {
         user = JSON.parse(userJson[1]);
-        console.log("✅ [checkAuth] User found:", user.email);
       }
 
       if (accountJson[1]) {
         account = JSON.parse(accountJson[1]);
-        console.log("✅ [checkAuth] Account found:", account?.accountNumber);
       }
 
       if (user && token[1]) {
@@ -412,7 +364,6 @@ export const useAuthStore = create((set, get) => ({
         return { success: false };
       }
     } catch (error) {
-      console.error("❌ [checkAuth] Error:", error.message);
       set({ isLoading: false, error: error.message });
       return { success: false, message: error.message };
     }
@@ -422,7 +373,6 @@ export const useAuthStore = create((set, get) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
-      console.log("🚀 [LOGOUT] Starting logout...");
       const allKeys = await AsyncStorage.getAllKeys();
       await AsyncStorage.multiRemove(allKeys);
 
@@ -434,10 +384,8 @@ export const useAuthStore = create((set, get) => ({
         error: null,
       });
 
-      console.log("✅ [LOGOUT] Logout successful");
       return { success: true };
     } catch (error) {
-      console.error("❌ [LOGOUT] Error:", error.message);
       set({ isLoading: false, error: error.message });
       return { success: false, message: error.message };
     }
@@ -490,7 +438,6 @@ export const useAuthStore = create((set, get) => ({
       }
       return false;
     } catch (error) {
-      console.error("❌ Error refreshing auth:", error.message);
       return false;
     }
   },

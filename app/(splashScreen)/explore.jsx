@@ -1,3 +1,4 @@
+// ================== src/app/explore/onboarding.jsx - WITH THEME ==================
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
@@ -11,6 +12,7 @@ import {
 import { useRouter } from "expo-router";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
+import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME
 
 const { width, height } = Dimensions.get("window");
 
@@ -44,6 +46,9 @@ export default function OnboardingScreen() {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const router = useRouter();
 
+  // ✅ GET THEME
+  const { colors, isDarkMode } = useTheme();
+
   // Use selectors to subscribe to auth state
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
@@ -52,7 +57,6 @@ export default function OnboardingScreen() {
   // Initialize auth check on mount
   useEffect(() => {
     const initAuth = async () => {
-      console.log("🎬 Onboarding - checking auth status");
       await checkAuth();
     };
     initAuth();
@@ -60,15 +64,9 @@ export default function OnboardingScreen() {
 
   // Extract navigation logic
   const navigateToNextScreen = useCallback(() => {
-    console.log("📱 Navigate to next screen");
-    console.log("   - user:", !!user);
-    console.log("   - token:", !!token);
-
     if (user && token) {
-      console.log("🟢 User authenticated - going to tabs");
-      router.replace("/(tabs)");
+      router.replace("/(auth)");
     } else {
-      console.log("🔴 No auth - going to login");
       router.replace("/(auth)");
     }
   }, [user, token, router]);
@@ -140,7 +138,10 @@ export default function OnboardingScreen() {
 
   return (
     <SafeScreen>
-      <View className="flex-1 bg-white px-3">
+      <View
+        className="flex-1 px-3"
+        style={{ backgroundColor: colors.background }}
+      >
         {/* Header with Logo */}
         <View className="flex-row items-center justify-center mt-16 pb-4">
           <Image
@@ -149,8 +150,9 @@ export default function OnboardingScreen() {
             resizeMode="contain"
           />
           <Text
-            className="text-4xl font-bold text-black "
+            className="text-4xl font-bold"
             style={{
+              color: colors.text,
               fontFamily: "Poppins-Bold",
               letterSpacing: 0.5,
             }}
@@ -170,8 +172,11 @@ export default function OnboardingScreen() {
             activeOpacity={0.7}
           >
             <Text
-              className="text-blue-500 text-base font-semibold"
-              style={{ fontFamily: "Poppins-SemiBold" }}
+              className="text-base font-semibold"
+              style={{
+                color: colors.primary,
+                fontFamily: "Poppins-SemiBold",
+              }}
             >
               Skip
             </Text>
@@ -215,9 +220,11 @@ export default function OnboardingScreen() {
                   onPress={() => handleStepPress(index)}
                   activeOpacity={0.8}
                   disabled={isAnimating}
-                  className={`flex-1 h-1.5 rounded-full min-w-5 ${
-                    currentStep >= index ? "bg-blue-500" : "bg-gray-300"
-                  }`}
+                  className="flex-1 h-1.5 rounded-full min-w-5"
+                  style={{
+                    backgroundColor:
+                      currentStep >= index ? colors.primary : colors.border,
+                  }}
                   accessibilityLabel={`Step ${index + 1} of ${
                     ONBOARDING_STEPS.length
                   }`}
@@ -229,16 +236,22 @@ export default function OnboardingScreen() {
 
             {/* Title */}
             <Text
-              className="text-2xl font-bold text-black text-center mb-4  px-4"
-              style={{ fontFamily: "Poppins-Bold" }}
+              className="text-2xl font-bold text-center mb-4 px-4"
+              style={{
+                color: colors.text,
+                fontFamily: "Poppins-Bold",
+              }}
             >
               {currentItem.name}
             </Text>
 
             {/* Description */}
             <Text
-              className="text-base text-center text-gray-800 leading-6 px-6"
-              style={{ fontFamily: "Poppins-Regular" }}
+              className="text-base text-center leading-6 px-6"
+              style={{
+                color: colors.textSecondary,
+                fontFamily: "Poppins-Regular",
+              }}
             >
               {currentItem.description}
             </Text>
@@ -249,16 +262,22 @@ export default function OnboardingScreen() {
         <TouchableOpacity
           onPress={handleNext}
           disabled={isAnimating}
-          className={`bg-black py-8 rounded-full items-center mb-8   ${
+          className={`py-8 rounded-full items-center mb-12 ${
             isAnimating ? "opacity-60" : ""
           }`}
+          style={{
+            backgroundColor: colors.text,
+          }}
           accessibilityLabel={isLastStep ? "Get started" : "Next step"}
           accessibilityRole="button"
           activeOpacity={0.8}
         >
           <Text
-            className="text-white text-lg font-bold tracking-wide"
-            style={{ fontFamily: "Poppins-Bold" }}
+            className="text-lg font-bold tracking-wide"
+            style={{
+              color: colors.card,
+              fontFamily: "Poppins-Bold",
+            }}
           >
             {isLastStep ? "Get Started" : "Try it now"}
           </Text>

@@ -1,4 +1,4 @@
-// src/(tabs)/utils/transfer.jsx - COMPLETE FIX
+// ================== src/(tabs)/utils/transfer.jsx - WITH THEME ==================
 import React, { useState, useRef } from "react";
 import {
   View,
@@ -24,6 +24,7 @@ import { useGetBalance } from "../hooks/useWallet";
 import { useGetAccountDetails } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
+import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME
 
 const NETWORKS = [
   { id: "MTN", name: "MTN" },
@@ -32,17 +33,13 @@ const NETWORKS = [
 ];
 
 const TRANSFER_TYPES = [
-  { id: "bank", label: "Bank Account", icon: "business", color: "bg-blue-500" },
-  {
-    id: "momo",
-    label: "Mobile Money",
-    icon: "phone-portrait",
-    color: "bg-orange-500",
-  },
+  { id: "bank", label: "Bank Account", icon: "business" },
+  { id: "momo", label: "Mobile Money", icon: "phone-portrait" },
 ];
 
 export default function TransferScreen() {
   const router = useRouter();
+  const { colors, isDarkMode } = useTheme(); // ✅ GET THEME
   const { user } = useAuthStore();
   const paystackWebViewRef = useRef();
 
@@ -213,12 +210,11 @@ export default function TransferScreen() {
       return;
     }
 
-    // ✅ FIXED: Correct payload structure
     const paystackPayload = {
       amount: parseFloat(amount),
       email: user?.email || `user_${user?.id}@tasktuges.app`,
       paymentMethod: "transfer",
-      recipientAccountNumber: recipientAccount, // ✅ FIXED: Use correct variable
+      recipientAccountNumber: recipientAccount,
       description: description || `Bank transfer to ${recipientAccount}`,
     };
 
@@ -247,33 +243,30 @@ export default function TransferScreen() {
   const handlePaystackSuccess = (res) => {
     console.log("✅ Paystack payment successful:", res);
 
-    verifyBankTransfer(
-      paystackReference, // ✅ FIXED: Pass only reference, not object
-      {
-        onSuccess: () => {
-          Alert.alert(
-            "Success",
-            `Bank transfer of ${formatAmount(amount)} completed!`,
-            [
-              {
-                text: "OK",
-                onPress: () => {
-                  resetForm();
-                  router.back();
-                },
+    verifyBankTransfer(paystackReference, {
+      onSuccess: () => {
+        Alert.alert(
+          "Success",
+          `Bank transfer of ${formatAmount(amount)} completed!`,
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                resetForm();
+                router.back();
               },
-            ]
-          );
-        },
-        onError: (error) => {
-          Alert.alert(
-            "Transfer Failed",
-            error?.message || "Failed to complete bank transfer."
-          );
-          setShowPaystack(false);
-        },
-      }
-    );
+            },
+          ]
+        );
+      },
+      onError: (error) => {
+        Alert.alert(
+          "Transfer Failed",
+          error?.message || "Failed to complete bank transfer."
+        );
+        setShowPaystack(false);
+      },
+    });
   };
 
   const resetForm = () => {
@@ -337,56 +330,78 @@ export default function TransferScreen() {
 
   return (
     <SafeScreen>
-      <ScrollView className="flex-1 bg-gray-50 pt-8">
+      <ScrollView
+        className="flex-1 pt-8"
+        style={{ backgroundColor: colors.background }}
+      >
         {/* Header */}
-        <View className="flex-row items-center justify-between px-5 pt-4 pb-3">
+        <View className="flex-row items-center justify-between px-5 pt-4 pb-3 mb-8">
           <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={28} color="#007AFF" />
+            <Ionicons name="chevron-back" size={28} color={colors.primary} />
           </TouchableOpacity>
-          <Text className="text-2xl font-bold text-gray-800">
+          <Text className="text-4xl font-bold" style={{ color: colors.text }}>
             Transfer Money
           </Text>
           <View className="w-7" />
         </View>
 
         {/* FROM Account */}
-        <View className="mx-5 mb-5 p-4 bg-blue-50 rounded-xl border border-blue-200">
-          <Text className="text-xs text-blue-600 font-semibold mb-1">
+        <View
+          className="mx-5 mb-5 p-4 rounded-xl border"
+          style={{
+            backgroundColor: colors.primaryLight,
+            borderColor: colors.primary,
+          }}
+        >
+          <Text
+            className="text-xs font-bold mb-1"
+            style={{ color: colors.primary }}
+          >
             TRANSFER FROM
           </Text>
-          <Text className="text-lg font-bold text-gray-800">
+          <Text className="text-lg font-bold" style={{ color: colors.text }}>
             {account?.accountNumber || "Your Account"}
           </Text>
-          <Text className="text-xs text-gray-600 mt-2">
+          <Text className="text-xs mt-2" style={{ color: colors.text }}>
             Available: {formatAmount(balance)}
           </Text>
         </View>
 
         {/* Transfer Type Selection */}
         <View className="mx-5 mb-6">
-          <Text className="text-sm font-semibold text-gray-700 mb-3">
+          <Text
+            className="text-sm font-semibold mb-3"
+            style={{ color: colors.text }}
+          >
             Transfer To *
           </Text>
           <View className="flex-row gap-3">
             {TRANSFER_TYPES.map((type) => (
               <TouchableOpacity
                 key={type.id}
-                className={`flex-1 p-4 rounded-xl border-2 items-center ${
-                  transferType === type.id
-                    ? "bg-blue-50 border-blue-600"
-                    : "bg-white border-gray-300"
-                }`}
+                className="flex-1 p-4 rounded-xl border-2 items-center"
+                style={{
+                  backgroundColor:
+                    transferType === type.id
+                      ? colors.primaryLight
+                      : colors.card,
+                  borderColor:
+                    transferType === type.id ? colors.primary : colors.border,
+                }}
                 onPress={() => setTransferType(type.id)}
               >
                 <View
-                  className={`w-12 h-12 rounded-full justify-center items-center mb-2 ${type.color}`}
+                  className="w-12 h-12 rounded-full justify-center items-center mb-2"
+                  style={{ backgroundColor: colors.primary }}
                 >
                   <Ionicons name={type.icon} size={24} color="#fff" />
                 </View>
                 <Text
-                  className={`text-sm font-semibold text-center ${
-                    transferType === type.id ? "text-blue-600" : "text-gray-700"
-                  }`}
+                  className="text-sm font-bold text-center"
+                  style={{
+                    color:
+                      transferType === type.id ? colors.primary : colors.text,
+                  }}
                 >
                   {type.label}
                 </Text>
@@ -397,30 +412,50 @@ export default function TransferScreen() {
 
         {/* Bank Account Transfer */}
         {transferType === "bank" && (
-          <View className="mx-5 mb-6 p-5 bg-white rounded-2xl">
-            <Text className="text-sm font-semibold text-gray-700 mb-3">
+          <View
+            className="mx-5 mb-6 p-5 rounded-2xl"
+            style={{ backgroundColor: colors.card }}
+          >
+            <Text
+              className="text-sm font-semibold mb-3"
+              style={{ color: colors.text }}
+            >
               Recipient Account Number *
             </Text>
-            <View className="flex-row items-center border-2 border-gray-200 rounded-xl px-4 py-3">
+            <View
+              className="flex-row items-center rounded-full px-4 py-3 border-2"
+              style={{
+                backgroundColor: colors.inputBackground,
+                borderColor: colors.inputBorder,
+              }}
+            >
               <Ionicons
                 name="person"
                 size={20}
-                color="#999"
+                color={colors.textSecondary}
                 style={{ marginRight: 10 }}
               />
               <TextInput
-                className="flex-1 text-base text-gray-800"
+                className="flex-1 text-base"
                 placeholder="Enter account number"
-                placeholderTextColor="#ccc"
+                placeholderTextColor={colors.textTertiary}
                 keyboardType="number-pad"
                 value={recipientAccount}
                 onChangeText={setRecipientAccount}
+                style={{ color: colors.text }}
               />
               {recipientAccount && recipientAccount.length >= 8 && (
-                <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={colors.success}
+                />
               )}
             </View>
-            <Text className="text-xs text-gray-500 mt-2">
+            <Text
+              className="text-xs mt-2"
+              style={{ color: colors.textSecondary }}
+            >
               Paystack secured transfer
             </Text>
           </View>
@@ -429,56 +464,101 @@ export default function TransferScreen() {
         {/* Mobile Money Transfer */}
         {transferType === "momo" && (
           <>
-            <View className="mx-5 mb-6 p-5 bg-white rounded-2xl">
-              <Text className="text-sm font-semibold text-gray-700 mb-3">
+            <View
+              className="mx-5 mb-6 p-5 rounded-2xl"
+              style={{ backgroundColor: colors.card }}
+            >
+              <Text
+                className="text-sm font-semibold mb-3"
+                style={{ color: colors.text }}
+              >
                 Recipient Phone Number *
               </Text>
-              <View className="flex-row items-center border-2 border-gray-200 rounded-xl px-4 py-3">
+              <View
+                className="flex-row items-center rounded-full px-4 py-3 border-2"
+                style={{
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.inputBorder,
+                }}
+              >
                 <Ionicons
                   name="call"
                   size={20}
-                  color="#999"
+                  color={colors.textSecondary}
                   style={{ marginRight: 10 }}
                 />
-                <Text className="text-gray-700 font-semibold mr-2">+233</Text>
+                <Text
+                  className="font-semibold mr-2"
+                  style={{ color: colors.text }}
+                >
+                  +233
+                </Text>
                 <TextInput
-                  className="flex-1 text-base text-gray-800"
+                  className="flex-1 text-base"
                   placeholder="501234567"
-                  placeholderTextColor="#ccc"
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="phone-pad"
                   maxLength={9}
                   value={phoneNumber}
                   onChangeText={handlePhoneChange}
+                  style={{ color: colors.text }}
                 />
                 {phoneNumber && phoneNumber.length >= 9 && (
-                  <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={20}
+                    color={colors.success}
+                  />
                 )}
               </View>
-              <Text className="text-xs text-gray-500 mt-2">
+              <Text
+                className="text-xs mt-2"
+                style={{ color: colors.textSecondary }}
+              >
                 Enter 9 digits (without +233 prefix)
               </Text>
             </View>
 
-            <View className="mx-5 mb-6 p-5 bg-white rounded-2xl">
-              <Text className="text-sm font-semibold text-gray-700 mb-3">
+            <View
+              className="mx-5 mb-6 p-5 rounded-full"
+              style={{ backgroundColor: colors.card }}
+            >
+              <Text
+                className="text-sm font-semibold mb-3"
+                style={{ color: colors.text }}
+              >
                 Mobile Network *
               </Text>
               <TouchableOpacity
-                className="flex-row items-center border-2 border-gray-200 rounded-xl px-4 py-3"
+                className="flex-row items-center rounded-xl px-4 py-3 border-2"
+                style={{
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.inputBorder,
+                }}
                 onPress={() => setShowNetworkModal(true)}
               >
                 <Ionicons
                   name="phone-portrait"
                   size={20}
-                  color="#999"
+                  color={colors.textSecondary}
                   style={{ marginRight: 10 }}
                 />
-                <Text className="flex-1 text-base text-gray-800 font-medium">
+                <Text
+                  className="flex-1 text-base font-medium"
+                  style={{ color: colors.text }}
+                >
                   {selectedNetwork || "Select Network"}
                 </Text>
-                <Ionicons name="chevron-down" size={20} color="#999" />
+                <Ionicons
+                  name="chevron-down"
+                  size={20}
+                  color={colors.textSecondary}
+                />
               </TouchableOpacity>
-              <Text className="text-xs text-gray-500 mt-2">
+              <Text
+                className="text-xs mt-2"
+                style={{ color: colors.textSecondary }}
+              >
                 MTN, Vodafone, or Tigo
               </Text>
             </View>
@@ -490,16 +570,32 @@ export default function TransferScreen() {
               transparent={true}
               onRequestClose={() => setShowNetworkModal(false)}
             >
-              <View className="flex-1 bg-black/50 justify-end">
-                <View className="bg-white rounded-t-3xl max-h-80">
-                  <View className="flex-row items-center justify-between px-5 py-4 border-b border-gray-100">
-                    <Text className="text-lg font-bold text-gray-800">
+              <View
+                className="flex-1 justify-end"
+                style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+              >
+                <View
+                  className="rounded-t-3xl max-h-80"
+                  style={{ backgroundColor: colors.card }}
+                >
+                  <View
+                    className="flex-row items-center justify-between px-5 py-4 border-b"
+                    style={{ borderColor: colors.border }}
+                  >
+                    <Text
+                      className="text-lg font-bold"
+                      style={{ color: colors.text }}
+                    >
                       Select Network
                     </Text>
                     <TouchableOpacity
                       onPress={() => setShowNetworkModal(false)}
                     >
-                      <Ionicons name="close" size={24} color="#999" />
+                      <Ionicons
+                        name="close"
+                        size={24}
+                        color={colors.textSecondary}
+                      />
                     </TouchableOpacity>
                   </View>
 
@@ -507,14 +603,18 @@ export default function TransferScreen() {
                     {NETWORKS.map((network) => (
                       <TouchableOpacity
                         key={network.id}
-                        className="flex-row items-center p-4 border-b border-gray-100"
+                        className="flex-row items-center p-4 border-b"
+                        style={{ borderColor: colors.border }}
                         onPress={() => {
                           setSelectedNetwork(network.id);
                           setShowNetworkModal(false);
                         }}
                       >
                         <View className="flex-1">
-                          <Text className="text-base font-bold text-gray-800">
+                          <Text
+                            className="text-base font-bold"
+                            style={{ color: colors.text }}
+                          >
                             {network.name}
                           </Text>
                         </View>
@@ -522,7 +622,7 @@ export default function TransferScreen() {
                           <Ionicons
                             name="checkmark-circle"
                             size={24}
-                            color="#22c55e"
+                            color={colors.success}
                           />
                         )}
                       </TouchableOpacity>
@@ -535,29 +635,45 @@ export default function TransferScreen() {
         )}
 
         {/* Transfer Amount */}
-        <View className="mx-5 mb-6 p-5 bg-white rounded-2xl">
-          <Text className="text-sm font-semibold text-gray-700 mb-3">
+        <View
+          className="mx-5 mb-6 p-5 rounded-2xl"
+          style={{ backgroundColor: colors.card }}
+        >
+          <Text
+            className="text-sm font-semibold mb-3"
+            style={{ color: colors.text }}
+          >
             Transfer Amount *
           </Text>
-          <View className="flex-row items-center border-2 border-gray-200 rounded-xl px-4 py-3">
-            <Text className="text-2xl font-bold text-gray-800 mr-2">
+          <View
+            className="flex-row items-center rounded-full px-4 py-3 border-2"
+            style={{
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.inputBorder,
+            }}
+          >
+            <Text
+              className="text-2xl font-bold mr-2"
+              style={{ color: colors.text }}
+            >
               {account?.currency === "GHS" ? "₵" : "$"}
             </Text>
             <TextInput
-              className="flex-1 text-3xl font-bold text-gray-800"
+              className="flex-1 text-3xl font-bold"
               placeholder="0.00"
-              placeholderTextColor="#ccc"
+              placeholderTextColor={colors.textTertiary}
               keyboardType="decimal-pad"
               value={amount}
               onChangeText={handleAmountChange}
+              style={{ color: colors.text }}
             />
           </View>
           {amount && (
             <View className="mt-3 flex-row justify-between">
-              <Text className="text-sm text-gray-600">
+              <Text className="text-sm" style={{ color: colors.textSecondary }}>
                 Amount: {formatAmount(amount)}
               </Text>
-              <Text className="text-sm text-gray-600">
+              <Text className="text-sm" style={{ color: colors.textSecondary }}>
                 Remaining: {formatAmount(balance - parseFloat(amount))}
               </Text>
             </View>
@@ -565,14 +681,25 @@ export default function TransferScreen() {
         </View>
 
         {/* Description */}
-        <View className="mx-5 mb-6 p-5 bg-white rounded-2xl">
-          <Text className="text-sm font-semibold text-gray-700 mb-3">
+        <View
+          className="mx-5 mb-6 p-5 rounded-full"
+          style={{ backgroundColor: colors.card }}
+        >
+          <Text
+            className="text-sm font-semibold mb-3"
+            style={{ color: colors.text }}
+          >
             Description (Optional)
           </Text>
           <TextInput
-            className="border border-gray-200 rounded-xl px-4 py-3 text-gray-800"
+            className="border rounded-full px-4 py-3"
+            style={{
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.inputBorder,
+              color: colors.text,
+            }}
             placeholder="Add a note..."
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textTertiary}
             value={description}
             onChangeText={setDescription}
             multiline
@@ -583,20 +710,20 @@ export default function TransferScreen() {
         {/* Terms */}
         <View className="mx-5 mb-6 flex-row items-start">
           <TouchableOpacity
-            className={`w-5 h-5 rounded border-2 mr-3 mt-0.5 justify-center items-center ${
-              agreedToTerms
-                ? "bg-orange-500 border-orange-500"
-                : "border-gray-300"
-            }`}
+            className="w-5 h-5 rounded border-2 mr-3 mt-0.5 justify-center items-center"
+            style={{
+              borderColor: agreedToTerms ? colors.warning : colors.border,
+              backgroundColor: agreedToTerms ? colors.warning : "transparent",
+            }}
             onPress={() => setAgreedToTerms(!agreedToTerms)}
           >
             {agreedToTerms && (
               <Ionicons name="checkmark" size={14} color="#fff" />
             )}
           </TouchableOpacity>
-          <Text className="flex-1 text-sm text-gray-600">
+          <Text className="flex-1 text-sm" style={{ color: colors.text }}>
             I agree to the{" "}
-            <Text className="text-orange-600 font-semibold">
+            <Text style={{ color: colors.warning, fontWeight: "600" }}>
               Terms & Conditions
             </Text>{" "}
             and confirm the recipient details.
@@ -606,17 +733,19 @@ export default function TransferScreen() {
         {/* Transfer Button */}
         <View className="mx-5 mb-6">
           <TouchableOpacity
-            className={`p-4 rounded-xl flex-row justify-center items-center ${
-              isValidAmount &&
-              isValidRecipient &&
-              isValidNetwork &&
-              agreedToTerms &&
-              !isMobileMoneyPending &&
-              !isPaystackInitializing &&
-              !isBankTransferVerifying
-                ? "bg-orange-500"
-                : "bg-gray-300"
-            }`}
+            className="p-6 rounded-full flex-row justify-center items-center"
+            style={{
+              backgroundColor:
+                isValidAmount &&
+                isValidRecipient &&
+                isValidNetwork &&
+                agreedToTerms &&
+                !isMobileMoneyPending &&
+                !isPaystackInitializing &&
+                !isBankTransferVerifying
+                  ? colors.warning
+                  : colors.textTertiary,
+            }}
             onPress={handleTransfer}
             disabled={
               !isValidAmount ||
@@ -658,19 +787,31 @@ export default function TransferScreen() {
         </View>
 
         {/* Info */}
-        <View className="mx-5 mb-10 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+        <View
+          className="mx-5 mb-10 p-4 rounded-xl border"
+          style={{
+            backgroundColor: colors.warningLight,
+            borderColor: colors.warning,
+          }}
+        >
           <View className="flex-row">
             <Ionicons
               name="information-circle"
               size={20}
-              color="#ca8a04"
+              color={colors.warning}
               style={{ marginRight: 10 }}
             />
             <View className="flex-1">
-              <Text className="font-semibold text-yellow-800 text-sm">
+              <Text
+                className="font-semibold text-sm"
+                style={{ color: colors.text }}
+              >
                 Transfer Information
               </Text>
-              <Text className="text-xs text-yellow-700 mt-1">
+              <Text
+                className="text-xs mt-1"
+                style={{ color: colors.textSecondary }}
+              >
                 {transferType === "bank"
                   ? "Bank transfers are verified through Paystack."
                   : "Mobile money transfers are instant and secured."}

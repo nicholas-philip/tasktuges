@@ -1,4 +1,4 @@
-// ================== app/(auth)/account-setup.jsx (COMPLETE FIXED) ==================
+// ================== app/(auth)/account-setup.jsx - WITH THEME ==================
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -25,9 +25,11 @@ import { useSetupAccount } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
 import { Image } from "react-native";
+import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME
 
 export default function AccountSetup() {
   const router = useRouter();
+  const { colors, isDarkMode } = useTheme(); // ✅ GET THEME
   const { mutate: setupAccount, isPending: loading } = useSetupAccount();
   const { checkAuth } = useAuthStore();
   const user = useAuthStore((state) => state.user);
@@ -215,17 +217,8 @@ export default function AccountSetup() {
     setupAccount(submitData, {
       onSuccess: async (data) => {
         console.log("✅ Setup response:", data);
-        console.log("📊 Response details:", {
-          hasProfileCompleted: !!data?.profileCompleted,
-          profileCompleted: data?.profileCompleted,
-          accountStatus: data?.account?.status,
-          accountExists: !!data?.account,
-        });
 
-        // ✅ CRITICAL: Update local storage FIRST before refreshing
-        console.log("💾 [onSuccess] Updating local storage...");
         try {
-          // Step 1: Update user profile with profileCompleted: true
           await useAuthStore.getState().updateUserProfile({
             firstName: submitData.firstName,
             lastName: submitData.lastName,
@@ -233,41 +226,23 @@ export default function AccountSetup() {
           });
           console.log("✅ User profile updated locally");
 
-          // Step 2: Get the response account data and merge with local account
           const localAccount = useAuthStore.getState().account;
-          console.log("📊 Local account before update:", localAccount);
-
           const updatedAccount = {
             ...localAccount,
-            ...data.account, // Merge with API response (includes status: "active")
+            ...data.account,
             personalInfo: {
               ...submitData,
             },
           };
 
-          console.log("📊 Merged account data:", updatedAccount);
-          console.log("   - status:", updatedAccount.status);
-          console.log("   - accountNumber:", updatedAccount.accountNumber);
-
-          // Step 3: Save merged account to store
           await useAuthStore.getState().updateAccount(updatedAccount);
           console.log("✅ Account updated locally with status: active");
 
-          // Step 4: Refresh auth state to confirm
           console.log("🔄 Refreshing auth state...");
-          const refreshedResult = await checkAuth();
+          await checkAuth();
           console.log("✅ Auth state refreshed");
-          console.log("📊 Refreshed user state:", {
-            profileCompleted: refreshedResult?.user?.profileCompleted,
-            accountStatus: refreshedResult?.user?.account?.status,
-          });
-
-          // ✅ The useEffect above will handle navigation automatically
-          // when user state updates and account.status === "active"
         } catch (refreshError) {
           console.error("⚠️ Error updating local storage:", refreshError);
-          // If local update fails, try manual navigation
-          console.log("📱 Manual navigation to tabs as fallback...");
           setTimeout(() => router.replace("/(tabs)"), 500);
         }
       },
@@ -284,54 +259,81 @@ export default function AccountSetup() {
 
   const renderStep1 = () => (
     <View>
-      <Text className="text-lg font-semibold text-gray-800 mb-4">
+      <Text
+        className="text-lg font-semibold mb-4"
+        style={{ color: colors.text }}
+      >
         Personal Information
       </Text>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
           First Name *
         </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.firstName}
           onChangeText={(value) => handleInputChange("firstName", value)}
           placeholder="John"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           autoCapitalize="words"
           editable={!loading}
         />
       </View>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
           Last Name *
         </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.lastName}
           onChangeText={(value) => handleInputChange("lastName", value)}
           placeholder="Doe"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           autoCapitalize="words"
           editable={!loading}
         />
       </View>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
           Date of Birth * (YYYY-MM-DD)
         </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.dateOfBirth}
           onChangeText={(value) => handleInputChange("dateOfBirth", value)}
           placeholder="1990-01-15"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           keyboardType="numbers-and-punctuation"
           editable={!loading}
         />
-        <Text className="text-xs text-gray-500 mt-1">
+        <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
           You must be at least 18 years old
         </Text>
       </View>
@@ -340,38 +342,57 @@ export default function AccountSetup() {
 
   const renderStep2 = () => (
     <View>
-      <Text className="text-lg font-semibold text-gray-800 mb-4">
+      <Text
+        className="text-lg font-semibold mb-4"
+        style={{ color: colors.text }}
+      >
         Contact Information
       </Text>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
           Phone Number * (+233...)
         </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.phoneNumber}
           onChangeText={(value) => handleInputChange("phoneNumber", value)}
           placeholder="+233501234567"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           keyboardType="phone-pad"
           editable={!loading}
         />
-        <Text className="text-xs text-gray-500 mt-1">
+        <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
           Format: +233XXXXXXXXX (Ghana)
         </Text>
       </View>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
           Street Address *
         </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.address}
           onChangeText={(value) => handleInputChange("address", value)}
           placeholder="123 Main Street, Osu"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           multiline
           numberOfLines={2}
           editable={!loading}
@@ -379,55 +400,89 @@ export default function AccountSetup() {
       </View>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">City *</Text>
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
+          City *
+        </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.city}
           onChangeText={(value) => handleInputChange("city", value)}
           placeholder="Accra"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           editable={!loading}
         />
       </View>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
           State/Region *
         </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.state}
           onChangeText={(value) => handleInputChange("state", value)}
           placeholder="Greater Accra"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           editable={!loading}
         />
       </View>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
           Postal Code (Optional)
         </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.postalCode}
           onChangeText={(value) => handleInputChange("postalCode", value)}
           placeholder="00233"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           editable={!loading}
         />
       </View>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
           Country *
         </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.country}
           onChangeText={(value) => handleInputChange("country", value)}
           placeholder="Ghana"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           editable={!loading}
         />
       </View>
@@ -436,12 +491,18 @@ export default function AccountSetup() {
 
   const renderStep3 = () => (
     <View>
-      <Text className="text-lg font-semibold text-gray-800 mb-4">
+      <Text
+        className="text-lg font-semibold mb-4"
+        style={{ color: colors.text }}
+      >
         Identification
       </Text>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-3">
+        <Text
+          className="text-sm font-medium mb-3"
+          style={{ color: colors.text }}
+        >
           ID Type *
         </Text>
         <View>
@@ -453,20 +514,20 @@ export default function AccountSetup() {
           ].map((type) => (
             <TouchableOpacity
               key={type.value}
-              className={`px-4 py-3 rounded-lg border mb-2 ${
-                formData.idType === type.value
-                  ? "bg-blue-600 border-blue-600"
-                  : "bg-white border-gray-300"
-              }`}
+              className="px-4 py-3 rounded-lg border mb-2"
+              style={{
+                backgroundColor:
+                  formData.idType === type.value ? colors.primary : colors.card,
+                borderColor: colors.border,
+              }}
               onPress={() => handleInputChange("idType", type.value)}
               disabled={loading}
             >
               <Text
-                className={`text-center font-medium ${
-                  formData.idType === type.value
-                    ? "text-white"
-                    : "text-gray-700"
-                }`}
+                className="text-center font-medium"
+                style={{
+                  color: formData.idType === type.value ? "#fff" : colors.text,
+                }}
               >
                 {type.label}
               </Text>
@@ -476,19 +537,27 @@ export default function AccountSetup() {
       </View>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
           ID Number *
         </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.idNumber}
           onChangeText={(value) => handleInputChange("idNumber", value)}
           placeholder="Enter your ID number (9-13 characters)"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           autoCapitalize="characters"
           editable={!loading}
         />
-        <Text className="text-xs text-gray-500 mt-1">
+        <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
           Must be 9-13 alphanumeric characters
         </Text>
       </View>
@@ -497,39 +566,58 @@ export default function AccountSetup() {
 
   const renderStep4 = () => (
     <View>
-      <Text className="text-lg font-semibold text-gray-800 mb-4">
+      <Text
+        className="text-lg font-semibold mb-4"
+        style={{ color: colors.text }}
+      >
         Employment Information
       </Text>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
           Occupation *
         </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.occupation}
           onChangeText={(value) => handleInputChange("occupation", value)}
           placeholder="e.g., Software Engineer, Teacher, Trader"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           autoCapitalize="words"
           editable={!loading}
         />
       </View>
 
       <View className="mb-4">
-        <Text className="text-sm font-medium text-gray-700 mb-2">
+        <Text
+          className="text-sm font-medium mb-2"
+          style={{ color: colors.text }}
+        >
           Monthly Income (GHS) *
         </Text>
         <TextInput
-          className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-900"
+          className="w-full px-4 py-3 rounded-lg border"
+          style={{
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }}
           value={formData.monthlyIncome}
           onChangeText={(value) => handleInputChange("monthlyIncome", value)}
           placeholder="5000"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.textTertiary}
           keyboardType="decimal-pad"
           editable={!loading}
         />
-        <Text className="text-xs text-gray-500 mt-1">
+        <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
           Enter amount in Ghana Cedis (GHS)
         </Text>
       </View>
@@ -546,7 +634,8 @@ export default function AccountSetup() {
   return (
     <SafeScreen>
       <KeyboardAvoidingView
-        className="flex-1 bg-gray-50"
+        className="flex-1"
+        style={{ backgroundColor: colors.background }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView className="flex-1" contentContainerStyle={{ padding: 20 }}>
@@ -558,16 +647,25 @@ export default function AccountSetup() {
                 className="w-16 h-16 mr-2"
                 resizeMode="contain"
               />
-              <Text className="text-4xl font-extrabold text-black tracking-wide">
+              <Text
+                className="text-4xl font-extrabold tracking-wide"
+                style={{ color: colors.text }}
+              >
                 SkyPay
               </Text>
             </View>
           </View>
           <View className="items-center mb-8 mt-6">
-            <Text className="text-3xl font-bold text-gray-800 mb-2 text-center">
+            <Text
+              className="text-3xl font-bold mb-2 text-center"
+              style={{ color: colors.text }}
+            >
               Complete Your Account Setup
             </Text>
-            <Text className="text-gray-600 text-center">
+            <Text
+              className="text-center"
+              style={{ color: colors.textSecondary }}
+            >
               Fill in your details to activate your account
             </Text>
           </View>
@@ -577,21 +675,31 @@ export default function AccountSetup() {
             {steps.map((step) => (
               <View key={step.number} className="flex-1 items-center">
                 <View
-                  className={`w-12 h-12 rounded-full items-center justify-center mb-2 ${
-                    currentStep >= step.number ? "bg-blue-600" : "bg-gray-300"
-                  }`}
+                  className="w-12 h-12 rounded-full items-center justify-center mb-2"
+                  style={{
+                    backgroundColor:
+                      currentStep >= step.number
+                        ? colors.primary
+                        : colors.border,
+                  }}
                 >
                   <step.icon
                     size={20}
-                    color={currentStep >= step.number ? "#FFFFFF" : "#6B7280"}
+                    color={
+                      currentStep >= step.number
+                        ? "#FFFFFF"
+                        : colors.textSecondary
+                    }
                   />
                 </View>
                 <Text
-                  className={`text-xs font-medium text-center ${
-                    currentStep >= step.number
-                      ? "text-blue-600"
-                      : "text-gray-500"
-                  }`}
+                  className="text-xs font-medium text-center"
+                  style={{
+                    color:
+                      currentStep >= step.number
+                        ? colors.primary
+                        : colors.textSecondary,
+                  }}
                 >
                   {step.title}
                 </Text>
@@ -599,19 +707,33 @@ export default function AccountSetup() {
             ))}
           </View>
 
-          <Text className="text-center text-sm text-gray-500 mb-6">
+          <Text
+            className="text-center text-sm mb-6"
+            style={{ color: colors.textSecondary }}
+          >
             Step {currentStep} of 4
           </Text>
 
           {/* Error Message */}
           {error ? (
-            <View className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-              <Text className="text-red-700 text-sm">{error}</Text>
+            <View
+              className="rounded-lg p-4 mb-6 border"
+              style={{
+                backgroundColor: colors.errorLight,
+                borderColor: colors.error,
+              }}
+            >
+              <Text style={{ color: colors.error }} className="text-sm">
+                {error}
+              </Text>
             </View>
           ) : null}
 
           {/* Form Steps */}
-          <View className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+          <View
+            className="rounded-2xl shadow-lg p-6 mb-6"
+            style={{ backgroundColor: colors.card }}
+          >
             {currentStep === 1 && renderStep1()}
             {currentStep === 2 && renderStep2()}
             {currentStep === 3 && renderStep3()}
@@ -621,22 +743,28 @@ export default function AccountSetup() {
           {/* Navigation Buttons */}
           <View className="flex-row justify-between gap-4 mb-8">
             <TouchableOpacity
-              className={`flex-1 flex-row items-center justify-center px-6 py-4 rounded-lg ${
-                currentStep === 1 || loading ? "bg-gray-200" : "bg-gray-300"
-              }`}
+              className="flex-1 flex-row items-center justify-center px-6 py-4 rounded-lg"
+              style={{
+                backgroundColor:
+                  currentStep === 1 || loading ? colors.border : colors.primary,
+              }}
               onPress={handleBack}
               disabled={currentStep === 1 || loading}
             >
               <ArrowLeft
                 size={20}
-                color={currentStep === 1 || loading ? "#9CA3AF" : "#374151"}
+                color={
+                  currentStep === 1 || loading ? colors.textSecondary : "#fff"
+                }
               />
               <Text
-                className={`ml-2 font-semibold ${
-                  currentStep === 1 || loading
-                    ? "text-gray-400"
-                    : "text-gray-700"
-                }`}
+                className="ml-2 font-semibold"
+                style={{
+                  color:
+                    currentStep === 1 || loading
+                      ? colors.textSecondary
+                      : "#fff",
+                }}
               >
                 Back
               </Text>
@@ -644,27 +772,37 @@ export default function AccountSetup() {
 
             {currentStep < 4 ? (
               <TouchableOpacity
-                className={`flex-1 flex-row items-center justify-center px-6 py-4 rounded-lg shadow-lg ${
-                  loading ? "bg-gray-400" : "bg-blue-600"
-                }`}
+                className="flex-1 flex-row items-center justify-center px-6 py-4 rounded-lg shadow-lg"
+                style={{
+                  backgroundColor: loading ? colors.border : colors.primary,
+                }}
                 onPress={handleNext}
                 disabled={loading}
               >
-                <Text className="text-white font-semibold mr-2">Next</Text>
+                <Text
+                  className="text-white font-semibold mr-2"
+                  style={{ color: "#fff" }}
+                >
+                  Next
+                </Text>
                 <ArrowRight size={20} color="#FFFFFF" />
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                className={`flex-1 items-center justify-center px-6 py-4 rounded-lg shadow-lg ${
-                  loading ? "bg-gray-400" : "bg-green-600"
-                }`}
+                className="flex-1 items-center justify-center px-6 py-4 rounded-lg shadow-lg"
+                style={{
+                  backgroundColor: loading ? colors.border : colors.success,
+                }}
                 onPress={handleSubmit}
                 disabled={loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text className="text-white font-semibold">
+                  <Text
+                    className="text-white font-semibold"
+                    style={{ color: "#fff" }}
+                  >
                     Complete Setup
                   </Text>
                 )}

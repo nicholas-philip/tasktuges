@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,11 +17,20 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { useGetAccountDetails, useUpdateAccount } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
+import { useTheme } from "../context/ThemeContext";
 import SafeScreen from "../../components/SafeScreen";
 
 const ProfileScreen = ({ navigation }) => {
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const {
+    colors,
+    isDarkMode,
+    themeMode,
+    setDarkMode,
+    setLightMode,
+    setSystemMode,
+  } = useTheme();
 
   const {
     data: accountData,
@@ -34,7 +44,7 @@ const ProfileScreen = ({ navigation }) => {
   const [editError, setEditError] = useState("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [profileImage, setProfileImage] = useState(user?.profileImage || null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   const [formData, setFormData] = useState({
     phoneNumber: "",
@@ -84,12 +94,9 @@ const ProfileScreen = ({ navigation }) => {
 
       if (!result.canceled) {
         setProfileImage(result.assets[0].uri);
-        // Here you would typically upload to your backend
-        // await uploadProfileImage(result.assets[0].uri);
       }
     } catch (error) {
       Alert.alert("Error", "Failed to pick image");
-      console.error(error);
     }
   };
 
@@ -113,12 +120,9 @@ const ProfileScreen = ({ navigation }) => {
 
       if (!result.canceled) {
         setProfileImage(result.assets[0].uri);
-        // Here you would typically upload to your backend
-        // await uploadProfileImage(result.assets[0].uri);
       }
     } catch (error) {
       Alert.alert("Error", "Failed to take photo");
-      console.error(error);
     }
   };
 
@@ -175,7 +179,6 @@ const ProfileScreen = ({ navigation }) => {
           setIsLoggingOut(true);
           try {
             const result = await logout();
-            console.log("📱 Logout result:", result);
             if (result.success) {
               Alert.alert("Success", "Logged out successfully", [
                 {
@@ -199,25 +202,49 @@ const ProfileScreen = ({ navigation }) => {
     ]);
   };
 
+  const handleThemeChange = (theme) => {
+    if (theme === "light") {
+      setLightMode();
+    } else if (theme === "dark") {
+      setDarkMode();
+    } else if (theme === "system") {
+      setSystemMode();
+    }
+    setShowThemeMenu(false);
+  };
+
+  const getCurrentTheme = () => {
+    return themeMode; // "light", "dark", or "system"
+  };
+
   if (detailsLoading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator size="large" color="#4F46E5" />
+      <View
+        style={{ backgroundColor: colors.background }}
+        className="flex-1 items-center justify-center"
+      >
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   if (detailsError) {
     return (
-      <View className="flex-1 bg-white justify-center items-center px-6">
-        <Text className="text-red-600 text-center mb-4">
+      <View
+        style={{ backgroundColor: colors.background }}
+        className="flex-1 justify-center items-center px-6"
+      >
+        <Text style={{ color: colors.error }} className="text-center mb-4">
           Error loading profile
         </Text>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          className="bg-indigo-600 px-6 py-3 rounded-xl"
+          style={{ backgroundColor: colors.primary }}
+          className="px-6 py-3 rounded-xl"
         >
-          <Text className="text-white font-semibold">Go Back</Text>
+          <Text style={{ color: colors.background }} className="font-semibold">
+            Go Back
+          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -227,20 +254,28 @@ const ProfileScreen = ({ navigation }) => {
 
   const InputField = ({ label, value, editable, field, keyboard }) => (
     <View className="mb-4">
-      <Text className="text-xs font-semibold text-gray-600 uppercase mb-2">
+      <Text
+        style={{ color: colors.textTertiary }}
+        className="text-xs font-semibold uppercase mb-2"
+      >
         {label}
       </Text>
       {editable ? (
         <TextInput
-          className="border border-gray-300 rounded-xl px-3 py-2 text-base"
+          style={{
+            borderColor: colors.inputBorder,
+            backgroundColor: colors.inputBackground,
+            color: colors.text,
+          }}
+          className="border rounded-xl px-3 py-2 text-base"
           placeholder={`Enter ${label.toLowerCase()}`}
           value={value}
           onChangeText={(v) => handleInputChange(field, v)}
           keyboardType={keyboard}
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.textTertiary}
         />
       ) : (
-        <Text className="text-base text-gray-900 font-medium">
+        <Text style={{ color: colors.text }} className="text-base font-medium">
           {value || "Not provided"}
         </Text>
       )}
@@ -249,10 +284,17 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <SafeScreen>
-      <ScrollView className="flex-1 bg-gray-50">
+      <ScrollView
+        style={{ backgroundColor: colors.background }}
+        className="flex-1"
+      >
         {/* ================= HERO HEADER ================= */}
         <LinearGradient
-          colors={["#4F46E5", "#6366F1", "#818CF8"]}
+          colors={[
+            colors.primary,
+            colors.primary + "dd",
+            colors.primary + "bb",
+          ]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{
@@ -263,6 +305,33 @@ const ProfileScreen = ({ navigation }) => {
             borderBottomRightRadius: 24,
           }}
         >
+          {/* Theme Dropdown Button at Top Left */}
+          <TouchableOpacity
+            onPress={() => setShowThemeMenu(true)}
+            style={{
+              backgroundColor: "rgba(255, 255, 255, 0.2)",
+              alignSelf: "flex-start",
+              marginBottom: 16,
+            }}
+            className="flex-row items-center gap-2 px-4 py-2 rounded-full"
+          >
+            <Ionicons
+              name={
+                getCurrentTheme() === "system"
+                  ? "phone-portrait"
+                  : getCurrentTheme() === "dark"
+                    ? "moon"
+                    : "sunny"
+              }
+              size={18}
+              color="white"
+            />
+            <Text className="text-white font-semibold text-sm capitalize">
+              {getCurrentTheme()}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color="white" />
+          </TouchableOpacity>
+
           {/* Profile Picture with Camera Icon */}
           <View className="items-center mb-6">
             <TouchableOpacity
@@ -276,7 +345,10 @@ const ProfileScreen = ({ navigation }) => {
                   style={{ aspectRatio: 1, resizeMode: "cover" }}
                 />
               ) : (
-                <View className="w-28 h-28 rounded-full bg-white/20 justify-center items-center border-4 border-white">
+                <View
+                  style={{ backgroundColor: "rgba(255, 255, 255, 0.2)" }}
+                  className="w-28 h-28 rounded-full justify-center items-center border-4 border-white"
+                >
                   <Text className="text-5xl font-bold text-white">
                     {user?.username?.[0]?.toUpperCase() || "U"}
                   </Text>
@@ -284,42 +356,48 @@ const ProfileScreen = ({ navigation }) => {
               )}
 
               {/* Camera Icon Badge */}
-              <View className="absolute bottom-0 right-0 bg-white rounded-full p-3 shadow-md">
-                <Ionicons name="camera" size={18} color="#4F46E5" />
+              <View
+                style={{ backgroundColor: colors.background }}
+                className="absolute bottom-0 right-0 rounded-full p-3 shadow-md"
+              >
+                <Ionicons name="camera" size={18} color={colors.primary} />
               </View>
             </TouchableOpacity>
 
-            <Text className="text-2xl font-bold text-white mt-5">
+            <Text className="text-4xl font-bold text-white mt-5">
               {account?.personalInfo?.firstName || user?.username || "User"}{" "}
               {account?.personalInfo?.lastName || ""}
             </Text>
-            <Text className="text-indigo-100 text-sm mt-1">{user?.email}</Text>
+            <Text className="text-white text-md mt-1">{user?.email}</Text>
           </View>
 
           {/* Stats Cards */}
           <View className="flex-row gap-2">
-            <View className="flex-1 bg-white/10 rounded-2xl p-3 backdrop-blur-sm">
-              <Text className="text-indigo-100 text-xs font-semibold">
-                Account
-              </Text>
+            <View
+              style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}
+              className="flex-1 rounded-2xl p-3"
+            >
+              <Text className="text-white text-xs font-semibold">Account</Text>
               <Text className="text-white font-bold text-sm mt-1">
                 {account?.accountNumber?.slice(-4) || "••••"}
               </Text>
             </View>
 
-            <View className="flex-1 bg-white/10 rounded-2xl p-3 backdrop-blur-sm">
-              <Text className="text-indigo-100 text-xs font-semibold">
-                Status
-              </Text>
+            <View
+              style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}
+              className="flex-1 rounded-2xl p-3"
+            >
+              <Text className="text-white text-xs font-semibold">Status</Text>
               <Text className="text-white font-bold text-sm mt-1 capitalize">
                 {account?.status || "Active"}
               </Text>
             </View>
 
-            <View className="flex-1 bg-white/10 rounded-2xl p-3 backdrop-blur-sm">
-              <Text className="text-indigo-100 text-xs font-semibold">
-                Balance
-              </Text>
+            <View
+              style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}
+              className="flex-1 rounded-2xl p-3"
+            >
+              <Text className="text-white text-xs font-semibold">Balance</Text>
               <Text className="text-white font-bold text-sm mt-1">
                 {account?.currency} {account?.balance || "0"}
               </Text>
@@ -327,40 +405,172 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </LinearGradient>
 
+        {/* ================= THEME DROPDOWN MODAL ================= */}
+        <Modal
+          visible={showThemeMenu}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowThemeMenu(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => setShowThemeMenu(false)}
+            className="flex-1"
+            style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+          >
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                position: "absolute",
+                top: 80,
+                left: 20,
+              }}
+              className="w-64 rounded-2xl border overflow-hidden shadow-lg"
+            >
+              <View
+                style={{
+                  backgroundColor: colors.primaryLight,
+                  borderBottomColor: colors.border,
+                }}
+                className="px-5 py-4 border-b"
+              >
+                <Text
+                  style={{ color: colors.primary }}
+                  className="font-bold text-base"
+                >
+                  Choose Theme
+                </Text>
+              </View>
+
+              {[
+                { value: "light", icon: "sunny", label: "Light Mode" },
+                { value: "dark", icon: "moon", label: "Dark Mode" },
+                {
+                  value: "system",
+                  icon: "phone-portrait",
+                  label: "System Default",
+                },
+              ].map((option, index) => (
+                <TouchableOpacity
+                  key={option.value}
+                  onPress={() => handleThemeChange(option.value)}
+                  style={{
+                    backgroundColor:
+                      getCurrentTheme() === option.value
+                        ? colors.primaryLight
+                        : "transparent",
+                    borderBottomColor: colors.border,
+                  }}
+                  className={`flex-row items-center gap-3 px-5 py-4 ${
+                    index < 2 ? "border-b" : ""
+                  }`}
+                >
+                  <Ionicons
+                    name={option.icon}
+                    size={22}
+                    color={
+                      getCurrentTheme() === option.value
+                        ? colors.primary
+                        : colors.textSecondary
+                    }
+                  />
+                  <Text
+                    style={{
+                      color:
+                        getCurrentTheme() === option.value
+                          ? colors.primary
+                          : colors.text,
+                    }}
+                    className="font-semibold flex-1"
+                  >
+                    {option.label}
+                  </Text>
+                  {getCurrentTheme() === option.value && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={22}
+                      color={colors.primary}
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
         {/* ================= MAIN CONTENT ================= */}
         <View className="px-6 py-6">
           {editError ? (
-            <View className="mb-4 p-4 bg-red-50 rounded-xl border border-red-200 flex-row items-center gap-2">
-              <Ionicons name="alert-circle" size={20} color="#DC2626" />
-              <Text className="text-red-800 text-sm flex-1">{editError}</Text>
+            <View
+              style={{
+                backgroundColor: colors.errorLight,
+                borderColor: colors.error,
+              }}
+              className="mb-4 p-4 rounded-xl border flex-row items-center gap-2"
+            >
+              <Ionicons name="alert-circle" size={20} color={colors.error} />
+              <Text style={{ color: colors.error }} className="text-sm flex-1">
+                {editError}
+              </Text>
             </View>
           ) : null}
 
           {/* PERSONAL INFO */}
           <View className="mb-6">
             <View className="flex-row items-center gap-2 mb-4">
-              <Ionicons name="person" size={20} color="#4F46E5" />
-              <Text className="text-lg font-bold text-gray-900">
+              <Ionicons name="person" size={20} color={colors.primary} />
+              <Text
+                style={{ color: colors.text }}
+                className="text-lg font-bold"
+              >
                 Personal Information
               </Text>
             </View>
 
-            <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
-              <View className="flex-row justify-between items-center pb-3 border-b border-gray-100">
-                <Text className="text-gray-600 font-medium">First Name</Text>
-                <Text className="font-semibold text-gray-900">
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
+              className="rounded-2xl p-5 border shadow-sm space-y-4"
+            >
+              <View
+                style={{ borderColor: colors.separator }}
+                className="flex-row justify-between items-center pb-3 border-b"
+              >
+                <Text
+                  style={{ color: colors.textSecondary }}
+                  className="font-medium"
+                >
+                  First Name
+                </Text>
+                <Text style={{ color: colors.text }} className="font-semibold">
                   {account?.personalInfo?.firstName || "N/A"}
                 </Text>
               </View>
-              <View className="flex-row justify-between items-center pb-3 border-b border-gray-100">
-                <Text className="text-gray-600 font-medium">Last Name</Text>
-                <Text className="font-semibold text-gray-900">
+              <View
+                style={{ borderColor: colors.separator }}
+                className="flex-row justify-between items-center pb-3 border-b"
+              >
+                <Text
+                  style={{ color: colors.textSecondary }}
+                  className="font-medium"
+                >
+                  Last Name
+                </Text>
+                <Text style={{ color: colors.text }} className="font-semibold">
                   {account?.personalInfo?.lastName || "N/A"}
                 </Text>
               </View>
               <View className="flex-row justify-between items-center">
-                <Text className="text-gray-600 font-medium">Date of Birth</Text>
-                <Text className="font-semibold text-gray-900">
+                <Text
+                  style={{ color: colors.textSecondary }}
+                  className="font-medium"
+                >
+                  Date of Birth
+                </Text>
+                <Text style={{ color: colors.text }} className="font-semibold">
                   {account?.personalInfo?.dateOfBirth
                     ? new Date(
                         account.personalInfo.dateOfBirth
@@ -375,29 +585,42 @@ const ProfileScreen = ({ navigation }) => {
           <View className="mb-6">
             <View className="flex-row justify-between items-center mb-4">
               <View className="flex-row items-center gap-2">
-                <Ionicons name="call" size={20} color="#4F46E5" />
-                <Text className="text-lg font-bold text-gray-900">
+                <Ionicons name="call" size={20} color={colors.primary} />
+                <Text
+                  style={{ color: colors.text }}
+                  className="text-lg font-bold"
+                >
                   Contact Information
                 </Text>
               </View>
 
               <TouchableOpacity
                 onPress={() => setIsEditing(!isEditing)}
-                className={`px-4 py-2 rounded-lg ${
-                  isEditing ? "bg-red-100" : "bg-indigo-100"
-                }`}
+                style={{
+                  backgroundColor: isEditing
+                    ? colors.errorLight
+                    : colors.primaryLight,
+                }}
+                className="px-4 py-2 rounded-lg"
               >
                 <Text
-                  className={`font-semibold ${
-                    isEditing ? "text-red-600" : "text-indigo-600"
-                  }`}
+                  style={{
+                    color: isEditing ? colors.error : colors.primary,
+                  }}
+                  className="font-semibold"
                 >
                   {isEditing ? "Cancel" : "Edit"}
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
+              className="rounded-2xl p-5 border shadow-sm"
+            >
               <InputField
                 label="Phone Number"
                 value={formData.phoneNumber}
@@ -435,35 +658,61 @@ const ProfileScreen = ({ navigation }) => {
           {/* IDENTIFICATION */}
           <View className="mb-6">
             <View className="flex-row items-center gap-2 mb-4">
-              <Ionicons name="document" size={20} color="#4F46E5" />
-              <Text className="text-lg font-bold text-gray-900">
+              <Ionicons name="document" size={20} color={colors.primary} />
+              <Text
+                style={{ color: colors.text }}
+                className="text-lg font-bold"
+              >
                 Identification
               </Text>
             </View>
 
-            <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
-              <View className="flex-row justify-between items-center pb-3 border-b border-gray-100">
-                <Text className="text-gray-600 font-medium">ID Type</Text>
-                <Text className="font-semibold text-gray-900">
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
+              className="rounded-2xl p-5 border shadow-sm space-y-4"
+            >
+              <View
+                style={{ borderColor: colors.separator }}
+                className="flex-row justify-between items-center pb-3 border-b"
+              >
+                <Text
+                  style={{ color: colors.textSecondary }}
+                  className="font-medium"
+                >
+                  ID Type
+                </Text>
+                <Text style={{ color: colors.text }} className="font-semibold">
                   {account?.identification?.idType || "N/A"}
                 </Text>
               </View>
-              <View className="flex-row justify-between items-center pb-3 border-b border-gray-100">
-                <Text className="text-gray-600 font-medium">ID Number</Text>
-                <Text className="font-semibold text-gray-900">
+              <View
+                style={{ borderColor: colors.separator }}
+                className="flex-row justify-between items-center pb-3 border-b"
+              >
+                <Text
+                  style={{ color: colors.textSecondary }}
+                  className="font-medium"
+                >
+                  ID Number
+                </Text>
+                <Text style={{ color: colors.text }} className="font-semibold">
                   {account?.identification?.idNumber || "N/A"}
                 </Text>
               </View>
 
               <View className="flex-row items-center gap-3 pt-2">
                 <View
-                  className={`w-3 h-3 rounded-full ${
-                    account?.identification?.verified
-                      ? "bg-green-500"
-                      : "bg-yellow-500"
-                  }`}
+                  style={{
+                    backgroundColor: account?.identification?.verified
+                      ? colors.success
+                      : colors.warning,
+                  }}
+                  className="w-3 h-3 rounded-full"
                 />
-                <Text className="font-medium text-gray-900">
+                <Text style={{ color: colors.text }} className="font-medium">
                   {account?.identification?.verified
                     ? "✓ Verified"
                     : "⏳ Pending Verification"}
@@ -475,13 +724,22 @@ const ProfileScreen = ({ navigation }) => {
           {/* EMPLOYMENT */}
           <View className="mb-6">
             <View className="flex-row items-center gap-2 mb-4">
-              <Ionicons name="briefcase" size={20} color="#4F46E5" />
-              <Text className="text-lg font-bold text-gray-900">
+              <Ionicons name="briefcase" size={20} color={colors.primary} />
+              <Text
+                style={{ color: colors.text }}
+                className="text-lg font-bold"
+              >
                 Employment Information
               </Text>
             </View>
 
-            <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
+              className="rounded-2xl p-5 border shadow-sm"
+            >
               <InputField
                 label="Occupation"
                 value={formData.occupation}
@@ -501,37 +759,41 @@ const ProfileScreen = ({ navigation }) => {
           {/* ACCOUNT INFO */}
           <View
             style={{
-              backgroundColor: "#F0F4FF",
-              borderRadius: 16,
-              padding: 20,
-              borderWidth: 1,
-              borderColor: "#E0E7FF",
-              marginBottom: 24,
+              backgroundColor: colors.primaryLight,
+              borderColor: colors.primary,
             }}
+            className="rounded-2xl p-5 border mb-6"
           >
             <View className="flex-row items-center gap-2 mb-3">
-              <Ionicons name="shield-checkmark" size={18} color="#4F46E5" />
-              <Text className="text-sm font-bold text-indigo-900">
+              <Ionicons
+                name="shield-checkmark"
+                size={18}
+                color={colors.primary}
+              />
+              <Text
+                style={{ color: colors.primary }}
+                className="text-sm font-bold"
+              >
                 Account Information
               </Text>
             </View>
 
             <View className="space-y-2">
-              <Text className="text-xs text-indigo-700">
+              <Text style={{ color: colors.primary }} className="text-xs">
                 Type:{" "}
                 <Text className="font-bold capitalize">
                   {account?.accountType || "Standard"}
                 </Text>
               </Text>
 
-              <Text className="text-xs text-indigo-700">
+              <Text style={{ color: colors.primary }} className="text-xs">
                 Verification:{" "}
                 <Text className="font-bold capitalize">
                   {account?.verificationLevel || "Basic"}
                 </Text>
               </Text>
 
-              <Text className="text-xs text-indigo-700">
+              <Text style={{ color: colors.primary }} className="text-xs">
                 Created:{" "}
                 <Text className="font-bold">
                   {account?.createdAt
@@ -547,16 +809,20 @@ const ProfileScreen = ({ navigation }) => {
             <TouchableOpacity
               onPress={handleSaveChanges}
               disabled={updateAccountMutation.isPending}
-              className={`py-4 rounded-xl mb-6 flex-row justify-center items-center gap-2 ${
-                updateAccountMutation.isPending
-                  ? "bg-gray-300"
-                  : "bg-indigo-600"
-              }`}
+              style={{
+                backgroundColor: updateAccountMutation.isPending
+                  ? colors.inputBorder
+                  : colors.primary,
+              }}
+              className="py-4 rounded-xl mb-6 flex-row justify-center items-center gap-2"
             >
               {updateAccountMutation.isPending && (
-                <ActivityIndicator size="small" color="white" />
+                <ActivityIndicator size="small" color={colors.background} />
               )}
-              <Text className="text-white font-bold text-center">
+              <Text
+                style={{ color: colors.background }}
+                className="font-bold text-center"
+              >
                 {updateAccountMutation.isPending ? "Saving..." : "Save Changes"}
               </Text>
             </TouchableOpacity>
@@ -566,13 +832,16 @@ const ProfileScreen = ({ navigation }) => {
           <TouchableOpacity
             onPress={handleLogout}
             disabled={isLoggingOut}
-            className={`py-4 rounded-xl mb-6 flex-row justify-center items-center gap-2 ${
-              isLoggingOut ? "bg-red-400" : "bg-red-600"
-            }`}
+            style={{
+              backgroundColor: isLoggingOut
+                ? colors.error + "80"
+                : colors.error,
+            }}
+            className="py-6 rounded-full mb-6 flex-row justify-center items-center gap-2"
           >
             {isLoggingOut && <ActivityIndicator size="small" color="white" />}
-            <Ionicons name="log-out" size={18} color="white" />
-            <Text className="text-white font-bold text-center">
+
+            <Text className="text-white font-bold text-center text-lg">
               {isLoggingOut ? "Logging out..." : "Logout"}
             </Text>
           </TouchableOpacity>

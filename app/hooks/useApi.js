@@ -1,4 +1,4 @@
-// ================== app/hooks/useApi.js (FIXED) ==================
+// ================== app/hooks/useApi.js ==================
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -16,7 +16,6 @@ export async function getAuthToken() {
     }
     return token;
   } catch (error) {
-    console.error("❌ Error getting auth token:", error.message);
     return null;
   }
 }
@@ -37,33 +36,24 @@ export async function apiFetch(endpoint, options = {}) {
         headers.Authorization = `Bearer ${token}`;
       }
     } catch (error) {
-      console.warn("⚠️ Could not retrieve auth token");
+      // Continue without auth if token retrieval fails
     }
   }
 
-  // ✅ FIX: Handle URL construction to avoid double slashes
+  // Handle URL construction to avoid double slashes
   let fullUrl;
   if (endpoint.startsWith("/")) {
-    // Endpoint has leading slash, just concatenate
     fullUrl = `${API_URL}${endpoint}`;
   } else {
-    // Endpoint doesn't have leading slash, add it
     fullUrl = `${API_URL}/${endpoint}`;
   }
 
   // Remove any double slashes (except in protocol)
   fullUrl = fullUrl.replace(/([^:]\/)\/+/g, "$1");
 
-  console.log("🔗 API Request:", {
-    url: fullUrl,
-    method,
-    hasAuth: requiresAuth,
-  });
-
   let requestBody = undefined;
   if (body) {
     requestBody = typeof body === "string" ? body : JSON.stringify(body);
-    console.log("📦 Request body:", requestBody.substring(0, 100) + "...");
   }
 
   try {
@@ -74,30 +64,30 @@ export async function apiFetch(endpoint, options = {}) {
       timeout: 30000,
     });
 
-    console.log("📊 API Response Status:", response.status);
+    const statusCode = response.status;
 
+    // Parse JSON response
     let data;
     try {
-      data = await response.json();
-    } catch (e) {
-      console.error("❌ Failed to parse JSON response");
+      const responseText = await response.text();
+
+      if (!responseText) {
+        data = { success: true };
+      } else {
+        data = JSON.parse(responseText);
+      }
+    } catch (parseError) {
       throw new Error("Invalid server response");
     }
 
-    if (!response.ok) {
-      const errorMessage = data?.message || `API Error: ${response.status}`;
-      console.error("❌ API Error:", errorMessage);
+    // Check for 2xx status codes
+    if (statusCode >= 200 && statusCode < 300) {
+      return data;
+    } else {
+      const errorMessage = data?.message || data?.error || `HTTP ${statusCode}`;
       throw new Error(errorMessage);
     }
-
-    console.log("✅ API Success:", endpoint);
-    return data;
   } catch (error) {
-    console.error("❌ API Fetch Failed:", {
-      endpoint,
-      error: error.message,
-      url: fullUrl,
-    });
     throw error;
   }
 }
@@ -121,14 +111,12 @@ export function useApiMutation(mutationUrl, invalidateKeys = [], options = {}) {
         body: data,
       }),
     onSuccess: (response) => {
-      console.log("✅ Mutation successful, invalidating keys:", invalidateKeys);
       invalidateKeys.forEach((key) => {
         queryClient.invalidateQueries({ queryKey: [key] });
       });
       options.onSuccess?.(response);
     },
     onError: (error) => {
-      console.error("❌ Mutation failed:", error.message);
       options.onError?.(error);
     },
   });

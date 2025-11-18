@@ -1,4 +1,4 @@
-// ================== app/_layout.jsx (ROOT LAYOUT UPDATED) ==================
+// app/_layout.jsx (ROOT LAYOUT WITH THEME)
 import { Stack } from "expo-router";
 import "../global.css";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -9,6 +9,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 
 import { useAuthStore } from "../store/authStore";
 import { queryClient } from "./lib/queryClient";
+import { ThemeProvider, useTheme } from "./context/ThemeContext";
 
 function RootLayoutContent() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
@@ -22,38 +23,24 @@ function RootLayoutContent() {
     requiresAccountSetup: false,
   });
 
+  const { isDarkMode, colors } = useTheme();
+
   // Single effect: Initialize auth once on mount
   useEffect(() => {
     let mounted = true;
 
     const initAuth = async () => {
       try {
-        console.log("🔍 Initializing authentication...");
         const result = await checkAuth();
-        console.log("✅ Auth check complete, user:", !!result?.user);
-        console.log("📊 User data:", {
-          emailVerified: result?.user?.emailVerified,
-          profileCompleted: result?.user?.profileCompleted,
-          accountStatus: result?.user?.account?.status,
-          accountExists: !!result?.user?.account,
-        });
 
         if (mounted) {
           if (result?.user && result?.token) {
-            // Check email verification
             const needsEmailVerification = !result.user.emailVerified;
 
-            // Check account setup
             const needsAccountSetup =
               !result.user.profileCompleted ||
               result.user.account?.status === "pending" ||
               !result.user.account;
-
-            console.log(
-              "🔧 Email verification required:",
-              needsEmailVerification
-            );
-            console.log("🔧 Account setup required:", needsAccountSetup);
 
             setAuthState({
               user: result.user,
@@ -64,10 +51,8 @@ function RootLayoutContent() {
           }
 
           setIsInitialized(true);
-          console.log("🟢 Initialization complete");
         }
       } catch (error) {
-        console.error("❌ Auth check error:", error);
         if (mounted) {
           setIsInitialized(true);
         }
@@ -84,19 +69,12 @@ function RootLayoutContent() {
   // Effect: Re-check auth state when user/token changes
   useEffect(() => {
     if (user && token) {
-      // Check email verification
       const needsEmailVerification = !user.emailVerified;
 
-      // Check account setup
       const needsAccountSetup =
         !user.profileCompleted ||
         user.account?.status === "pending" ||
         !user.account;
-
-      console.log("🔄 User state changed");
-      console.log("   - emailVerified:", user.emailVerified);
-      console.log("   - requiresEmailVerification:", needsEmailVerification);
-      console.log("   - requiresAccountSetup:", needsAccountSetup);
 
       setAuthState({
         user,
@@ -105,7 +83,6 @@ function RootLayoutContent() {
         requiresAccountSetup: needsAccountSetup,
       });
     } else {
-      console.log("🔄 User logged out");
       setAuthState({
         user: null,
         token: null,
@@ -115,24 +92,16 @@ function RootLayoutContent() {
     }
   }, [user, token]);
 
-  console.log("📊 Current routing state:", {
-    isInitialized,
-    user: !!authState.user,
-    token: !!authState.token,
-    requiresEmailVerification: authState.requiresEmailVerification,
-    requiresAccountSetup: authState.requiresAccountSetup,
-  });
-
   // Show splash screen while checking auth
   if (!isInitialized) {
-    console.log("⏳ Not initialized - showing splash screen");
     return (
       <SafeAreaProvider>
-        <StatusBar style="auto" />
+        <StatusBar style={isDarkMode ? "light" : "dark"} />
         <Stack
           screenOptions={{
             headerShown: false,
             animationEnabled: false,
+            contentStyle: { backgroundColor: colors.background },
           }}
         >
           <Stack.Screen name="(splashScreen)" />
@@ -143,14 +112,14 @@ function RootLayoutContent() {
 
   // User not authenticated → Show auth stack
   if (!authState.user || !authState.token) {
-    console.log("🔴 No auth - showing login/auth");
     return (
       <SafeAreaProvider>
-        <StatusBar style="auto" />
+        <StatusBar style={isDarkMode ? "light" : "dark"} />
         <Stack
           screenOptions={{
             headerShown: false,
             animationEnabled: false,
+            contentStyle: { backgroundColor: colors.background },
           }}
         >
           <Stack.Screen name="(auth)" />
@@ -159,17 +128,16 @@ function RootLayoutContent() {
     );
   }
 
-  // ✅ User authenticated but email not verified → Show login/auth screen
-  // (Let user manually navigate to verify email if needed)
+  // User authenticated but email not verified
   if (authState.requiresEmailVerification) {
-    console.log("🟡 User authenticated but email not verified - showing auth");
     return (
       <SafeAreaProvider>
-        <StatusBar style="auto" />
+        <StatusBar style={isDarkMode ? "light" : "dark"} />
         <Stack
           screenOptions={{
             headerShown: false,
             animationEnabled: false,
+            contentStyle: { backgroundColor: colors.background },
           }}
         >
           <Stack.Screen name="(auth)" />
@@ -178,18 +146,16 @@ function RootLayoutContent() {
     );
   }
 
-  // ✅ User authenticated, email verified, but account setup incomplete → Show setup
+  // User authenticated, email verified, but account setup incomplete
   if (authState.requiresAccountSetup) {
-    console.log(
-      "🟡 User authenticated, email verified, but needs account setup"
-    );
     return (
       <SafeAreaProvider>
-        <StatusBar style="auto" />
+        <StatusBar style={isDarkMode ? "light" : "dark"} />
         <Stack
           screenOptions={{
             headerShown: false,
             animationEnabled: false,
+            contentStyle: { backgroundColor: colors.background },
           }}
         >
           <Stack.Screen
@@ -203,17 +169,15 @@ function RootLayoutContent() {
     );
   }
 
-  // ✅ User fully authenticated and account complete → Show main app
-  console.log(
-    "🟢 User authenticated, email verified, account complete - showing tabs"
-  );
+  // User fully authenticated and account complete
   return (
     <SafeAreaProvider>
-      <StatusBar style="auto" />
+      <StatusBar style={isDarkMode ? "light" : "dark"} />
       <Stack
         screenOptions={{
           headerShown: false,
           animationEnabled: false,
+          contentStyle: { backgroundColor: colors.background },
         }}
       >
         <Stack.Screen name="(tabs)" />
@@ -224,8 +188,10 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <RootLayoutContent />
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <RootLayoutContent />
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

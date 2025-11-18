@@ -23,7 +23,6 @@ export function useSetupAccount() {
         body: formData,
       }),
     onSuccess: (data) => {
-      console.log("✅ Account created successfully");
       queryClient.setQueryData(["account", "details"], data);
       queryClient.invalidateQueries({ queryKey: ["account"] });
     },
@@ -49,8 +48,6 @@ export function useUpdateAccount() {
 
   return useMutation({
     mutationFn: (updateData) => {
-      console.log("📤 [useUpdateAccount] Sending:", updateData);
-
       // Transform form data to backend structure if needed
       const payload = {
         contactInfo: {
@@ -72,7 +69,6 @@ export function useUpdateAccount() {
       });
     },
     onSuccess: (data) => {
-      console.log("✅ Account updated successfully");
       queryClient.setQueryData(["account", "details"], data);
       queryClient.invalidateQueries({ queryKey: ["account"] });
     },
@@ -93,7 +89,6 @@ export function useUpdateAccountStatus() {
         body: { status },
       }),
     onSuccess: (data) => {
-      console.log("✅ Account status updated");
       queryClient.invalidateQueries({ queryKey: ["account"] });
     },
   });

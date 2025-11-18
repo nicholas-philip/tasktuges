@@ -1,5 +1,5 @@
-// src/(tabs)/utils/payment.jsx - COMPLETE FIX
-import React, { useState, useRef } from "react";
+// ================== src/(tabs)/utils/payment.jsx - WITH THEME ==================
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,13 +15,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 
-import {
-  usePaystackInitialize,
-  useVerifyCardPayment,
-} from "../hooks/usePayment";
+import { usePaymentInitialize, useVerifyPayment } from "../hooks/usePayment";
 import { useGetBalance } from "../hooks/useWallet";
 import { useGetAccountDetails } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
+import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME
 
 const PAYMENT_RECIPIENTS = [
   {
@@ -29,85 +27,62 @@ const PAYMENT_RECIPIENTS = [
     name: "Bliss School",
     category: "Education",
     icon: "school",
-    color: "bg-blue-500",
   },
   {
     id: 2,
     name: "ECG",
     category: "Utilities",
     icon: "flash",
-    color: "bg-yellow-500",
   },
   {
     id: 3,
     name: "Water Company",
     category: "Utilities",
     icon: "water",
-    color: "bg-cyan-500",
   },
   {
     id: 4,
     name: "Foodstuff",
     category: "Groceries",
     icon: "basket",
-    color: "bg-green-500",
   },
   {
     id: 5,
     name: "School Fees",
     category: "Education",
     icon: "document",
-    color: "bg-indigo-500",
   },
   {
     id: 6,
     name: "Internet Bill",
     category: "Utilities",
     icon: "wifi",
-    color: "bg-blue-600",
   },
   {
     id: 7,
     name: "Mobile Bill",
     category: "Telecom",
     icon: "phone-portrait",
-    color: "bg-purple-500",
   },
   {
     id: 8,
     name: "Rent Payment",
     category: "Housing",
     icon: "home",
-    color: "bg-orange-500",
   },
 ];
 
 const PAYMENT_METHODS = [
-  { id: "card", label: "Debit Card", icon: "card", color: "bg-blue-500" },
-  {
-    id: "wallet",
-    label: "Wallet Balance",
-    icon: "wallet",
-    color: "bg-green-500",
-  },
-  {
-    id: "mobile_money",
-    label: "Mobile Money",
-    icon: "phone-portrait",
-    color: "bg-orange-500",
-  },
-];
-
-const NETWORKS = [
-  { id: "MTN", name: "MTN" },
-  { id: "VODAFONE", name: "Vodafone" },
-  { id: "TIGO", name: "Tigo" },
+  { id: "card", label: "Debit Card", icon: "card" },
+  { id: "wallet", label: "Wallet Balance", icon: "wallet" },
 ];
 
 export default function PaymentScreen() {
   const router = useRouter();
+  const { colors, isDarkMode } = useTheme(); // ✅ GET THEME
   const { user } = useAuthStore();
 
+  // ================== STATE MANAGEMENT ==================
   const [selectedRecipient, setSelectedRecipient] = useState(null);
   const [selectedMethod, setSelectedMethod] = useState("wallet");
   const [amount, setAmount] = useState("");
@@ -116,47 +91,24 @@ export default function PaymentScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
   const [isCustomRecipient, setIsCustomRecipient] = useState(false);
-  const [showMobileMoneyModal, setShowMobileMoneyModal] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [selectedNetwork, setSelectedNetwork] = useState(null);
-  const [paystackReference, setPaystackReference] = useState(null);
-  const [pendingVerification, setPendingVerification] = useState(false);
 
-  const { mutate: initializePaystack, isPending: isPaystackInitializing } =
-    usePaystackInitialize();
-  const { mutate: verifyCardPayment, isPending: isVerifying } =
-    useVerifyCardPayment();
+  // ✅ PAYMENT TRACKING STATE
+  const [paystackReference, setPaystackReference] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationAttempts, setVerificationAttempts] = useState(0);
+  const [hasVerified, setHasVerified] = useState(false);
+
+  // ================== HOOKS ==================
+  const { mutate: initializePayment, isPending: isPaymentInitializing } =
+    usePaymentInitialize();
+  const { mutate: verifyPayment, isPending: isPaymentVerifying } =
+    useVerifyPayment();
   const { data: balanceData, refetch: refetchBalance } = useGetBalance();
   const { data: account, refetch: refetchAccount } = useGetAccountDetails();
 
-  useFocusEffect(
-    React.useCallback(() => {
-      refetchBalance();
-      refetchAccount();
-      console.log("🔄 Payment screen refreshed");
-
-      // Auto-verify if there's a pending payment when screen comes into focus
-      if (pendingVerification && paystackReference) {
-        console.log("🔍 Auto-verifying pending payment on focus");
-        const recipientName = isCustomRecipient
-          ? customName
-          : selectedRecipient?.name;
-        handlePaymentVerification(paystackReference, recipientName);
-      }
-    }, [refetchBalance, refetchAccount, pendingVerification, paystackReference])
-  );
-
-  useFocusEffect(
-    React.useCallback(() => {
-      return () => {
-        resetForm();
-        console.log("🗑️ Payment form cleared");
-      };
-    }, [])
-  );
-
   const balance = balanceData?.balance || 0;
 
+  // ================== DERIVED STATE ==================
   const isValidAmount =
     amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0;
 
@@ -170,156 +122,124 @@ export default function PaymentScreen() {
     }).format(parseFloat(val) || 0);
   };
 
-  const handleMobileMoneyInitiate = () => {
-    // Prevent multiple clicks
-    if (isPaystackInitializing) {
-      console.log("⏳ Already initializing, please wait...");
-      return;
-    }
+  // ================== CLEANUP ON UNFOCUS ==================
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("🔄 Payment screen focused");
+      refetchBalance();
+      refetchAccount();
 
-    if (phoneNumber.length !== 9) {
-      Alert.alert("Error", "Phone number must be 9 digits");
-      return;
-    }
-    if (!selectedNetwork) {
-      Alert.alert("Error", "Please select a network");
-      return;
-    }
+      return () => {
+        console.log("🗑️ Payment screen unfocused");
+      };
+    }, [])
+  );
 
-    const recipientName = isCustomRecipient
-      ? customName
-      : selectedRecipient.name;
-    const fullPhoneNumber = `+233${phoneNumber}`;
+  // ================== MANUAL VERIFY ==================
+  const handleManualVerifyPayment = useCallback(() => {
+    if (!paystackReference) return;
 
-    console.log("🚀 Initiating mobile money payment:", {
-      amount: parseFloat(amount),
-      network: selectedNetwork,
-      phone: fullPhoneNumber,
-      recipient: recipientName,
-    });
+    console.log("🔍 Manual verification:", paystackReference);
+    setIsVerifying(true);
 
-    initializePaystack(
-      {
-        amount: parseFloat(amount),
-        email: user?.email || `user_${user?.id}@tasktuges.app`,
-        phoneNumber: fullPhoneNumber,
-        network: selectedNetwork,
-        paymentMethod: "mobile_money",
-        recipient: {
-          name: recipientName,
-        },
-        description: description || `Payment to ${recipientName}`,
-      },
-      {
-        onSuccess: (data) => {
-          console.log("✅ Mobile money initialized:", data.reference);
-          setPaystackReference(data.reference);
-          setShowMobileMoneyModal(false);
-          setPendingVerification(true); // Set pending flag
-
-          // Open Paystack in external browser
-          if (data.authorizationUrl) {
-            Linking.openURL(data.authorizationUrl);
-
-            Alert.alert(
-              "Complete Payment",
-              "Complete your payment in the browser. When done, return to this app to verify.",
-              [
-                {
-                  text: "Cancel",
-                  style: "cancel",
-                  onPress: () => setPendingVerification(false),
-                },
-                {
-                  text: "I've Paid - Verify Now",
-                  onPress: () =>
-                    handlePaymentVerification(data.reference, recipientName),
-                },
-              ]
-            );
-          }
-        },
-        onError: (error) => {
-          console.error("❌ Mobile money init failed:", error);
-          Alert.alert(
-            "Error",
-            error?.message || "Failed to initialize payment"
-          );
-        },
-      }
-    );
-  };
-
-  const handlePaymentVerification = (reference, recipientName) => {
-    console.log("🔍 Verifying payment:", reference);
-    setPendingVerification(false); // Clear pending flag
-
-    verifyCardPayment(reference, {
+    verifyPayment(paystackReference, {
       onSuccess: (data) => {
-        console.log("✅ Payment verified and saved:", data);
+        console.log("✅ Manual verification successful!", data);
+        setIsVerifying(false);
+        setHasVerified(true);
+
+        const recipientName = isCustomRecipient
+          ? customName
+          : selectedRecipient?.name;
 
         Alert.alert(
-          "Success",
-          `Payment of ${formatAmount(amount)} to ${recipientName} completed successfully!`,
+          "✅ Payment Verified!",
+          `Payment of ${formatAmount(amount)} to ${recipientName} completed!`,
           [
             {
-              text: "OK",
+              text: "Done",
               onPress: () => {
-                resetForm();
                 refetchBalance();
-                router.back();
+                resetForm();
+                handleGoBack();
               },
             },
           ]
         );
       },
       onError: (error) => {
-        console.error("❌ Payment verification failed:", error);
+        console.error("❌ Manual verification failed:", error);
+        setIsVerifying(false);
+
         Alert.alert(
-          "Payment Status",
+          "Verification Failed",
           error?.message ||
-            "Payment not yet completed. Please complete the payment in your browser first, then try again.",
+            "Could not verify payment. Please check your transaction history.",
           [
             {
               text: "Try Again",
-              onPress: () =>
-                handlePaymentVerification(reference, recipientName),
+              onPress: () => handleManualVerifyPayment(),
             },
             {
               text: "Cancel",
               style: "cancel",
               onPress: () => {
-                setPendingVerification(false);
                 setPaystackReference(null);
+                setHasVerified(true);
+                setVerificationAttempts(0);
+                resetForm();
               },
             },
           ]
         );
       },
     });
-  };
+  }, [
+    paystackReference,
+    isCustomRecipient,
+    customName,
+    selectedRecipient,
+    amount,
+    verifyPayment,
+  ]);
 
+  // ================== RESET FORM ==================
   const resetForm = () => {
+    console.log("🔄 Resetting form...");
     setSelectedRecipient(null);
     setAmount("");
     setDescription("");
     setAgreedToTerms(false);
     setCustomName("");
     setIsCustomRecipient(false);
-    setPhoneNumber("");
-    setSelectedNetwork(null);
     setPaystackReference(null);
-    setShowMobileMoneyModal(false);
-    setPendingVerification(false);
+    setIsVerifying(false);
+    setVerificationAttempts(0);
+    setHasVerified(false);
   };
 
+  // ================== SAFE NAVIGATION ==================
+  const handleGoBack = () => {
+    try {
+      if (router.canGoBack?.()) {
+        router.back();
+      } else {
+        router.replace("/(tabs)/home");
+      }
+    } catch (error) {
+      console.log("Navigation error:", error);
+      router.replace("/(tabs)/home");
+    }
+  };
+
+  // ================== INITIALIZE PAYMENT ==================
   const handlePayment = () => {
-    // Prevent multiple clicks
-    if (isPaystackInitializing || isVerifying) {
+    if (isPaymentInitializing || isPaymentVerifying) {
       console.log("⏳ Already processing, please wait...");
       return;
     }
 
+    // ✅ VALIDATION
     if (!isValidRecipient) {
       Alert.alert(
         "Invalid Recipient",
@@ -333,7 +253,6 @@ export default function PaymentScreen() {
       return;
     }
 
-    // ✅ Check balance for wallet payments
     if (selectedMethod === "wallet" && parseFloat(amount) > balance) {
       Alert.alert(
         "Insufficient Balance",
@@ -350,73 +269,17 @@ export default function PaymentScreen() {
       return;
     }
 
-    if (selectedMethod === "mobile_money") {
-      setShowMobileMoneyModal(true);
-      return;
-    }
-
     const recipientName = isCustomRecipient
       ? customName
       : selectedRecipient.name;
 
-    // ✅ FOR WALLET PAYMENTS: Skip Paystack, process directly
-    if (selectedMethod === "wallet") {
-      console.log("💰 Processing wallet payment directly");
-
-      Alert.alert(
-        "Confirm Payment",
-        `Pay ${formatAmount(amount)} to ${recipientName} from your wallet?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Pay Now",
-            onPress: () => {
-              // Generate a reference for the wallet payment
-              const walletReference = `WALLET-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-              // Directly verify (which processes the payment)
-              verifyCardPayment(walletReference, {
-                onSuccess: (data) => {
-                  console.log("✅ Wallet payment completed:", data);
-
-                  Alert.alert(
-                    "Success",
-                    `Payment of ${formatAmount(amount)} to ${recipientName} completed successfully!`,
-                    [
-                      {
-                        text: "OK",
-                        onPress: () => {
-                          resetForm();
-                          refetchBalance();
-                          router.back();
-                        },
-                      },
-                    ]
-                  );
-                },
-                onError: (error) => {
-                  console.error("❌ Wallet payment failed:", error);
-                  Alert.alert(
-                    "Payment Failed",
-                    error?.message || "Failed to complete payment."
-                  );
-                },
-              });
-            },
-          },
-        ]
-      );
-      return;
-    }
-
-    // ✅ FOR CARD PAYMENTS: Use Paystack in external browser
-    console.log("🚀 Initiating card payment via Paystack:", {
+    console.log("🚀 Initiating PAYMENT via Paystack:", {
       amount: parseFloat(amount),
       method: selectedMethod,
       recipient: recipientName,
     });
 
-    initializePaystack(
+    initializePayment(
       {
         amount: parseFloat(amount),
         email: user?.email || `user_${user?.id}@tasktuges.app`,
@@ -430,25 +293,21 @@ export default function PaymentScreen() {
         onSuccess: (data) => {
           console.log("✅ Payment initialized:", data.reference);
           setPaystackReference(data.reference);
-          setPendingVerification(true); // Set pending flag
+          setVerificationAttempts(0);
+          setHasVerified(false);
 
-          // Open Paystack in external browser
           if (data.authorizationUrl) {
             Linking.openURL(data.authorizationUrl);
 
             Alert.alert(
               "Complete Payment",
-              "Complete your payment in the browser. When done, return to this app to verify.",
+              "Complete your payment in the browser. When done, return to this app and we'll verify manually.",
               [
                 {
-                  text: "Cancel",
-                  style: "cancel",
-                  onPress: () => setPendingVerification(false),
-                },
-                {
-                  text: "I've Paid - Verify Now",
-                  onPress: () =>
-                    handlePaymentVerification(data.reference, recipientName),
+                  text: "I understand",
+                  onPress: () => {
+                    console.log("📱 User acknowledged - waiting for return...");
+                  },
                 },
               ]
             );
@@ -465,14 +324,10 @@ export default function PaymentScreen() {
     );
   };
 
+  // ================== HANDLERS ==================
   const handleAmountChange = (text) => {
     const numericText = text.replace(/[^0-9.]/g, "");
     setAmount(numericText);
-  };
-
-  const handlePhoneChange = (text) => {
-    const numericText = text.replace(/[^0-9]/g, "");
-    setPhoneNumber(numericText);
   };
 
   const handleSelectRecipient = (recipient) => {
@@ -481,81 +336,133 @@ export default function PaymentScreen() {
     setShowRecipientModal(false);
   };
 
+  // ================== RENDER ==================
   return (
-    <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1 }}>
+    <SafeAreaView
+      edges={["top", "bottom"]}
+      style={{ flex: 1, backgroundColor: colors.background }}
+    >
       <ScrollView
-        className="flex-1 bg-gray-50"
+        className="flex-1"
         contentContainerStyle={{ flexGrow: 1 }}
+        style={{ backgroundColor: colors.background }}
       >
+        {/* HEADER */}
         <View className="flex-row items-center justify-between px-5 pt-4 pb-3">
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={28} color="#007AFF" />
+          <TouchableOpacity onPress={handleGoBack}>
+            <Ionicons name="chevron-back" size={28} color={colors.primary} />
           </TouchableOpacity>
-          <Text className="text-2xl font-bold text-gray-800">Make Payment</Text>
+          <Text className="text-2xl font-bold" style={{ color: colors.text }}>
+            Make Payment
+          </Text>
           <View className="w-7" />
         </View>
 
-        <View className="mx-5 mb-5 p-4 bg-blue-50 rounded-xl border border-blue-200">
-          <Text className="text-xs text-blue-600 font-semibold mb-1">
+        {/* BALANCE CARD */}
+        <View
+          className="mx-5 mb-5 p-4 rounded-xl border"
+          style={{
+            backgroundColor: colors.primaryLight,
+            borderColor: colors.primary,
+          }}
+        >
+          <Text
+            className="text-xs font-semibold mb-1"
+            style={{ color: colors.primary }}
+          >
             AVAILABLE BALANCE
           </Text>
-          <Text className="text-2xl font-bold text-gray-800">
+          <Text className="text-2xl font-bold" style={{ color: colors.text }}>
             {formatAmount(balance)}
           </Text>
         </View>
 
-        {pendingVerification && paystackReference && (
-          <View className="mx-5 mb-5 p-4 bg-orange-50 rounded-xl border-2 border-orange-400">
+        {/* VERIFYING STATE */}
+        {isVerifying && paystackReference && (
+          <View
+            className="mx-5 mb-5 p-4 rounded-xl border-2"
+            style={{
+              backgroundColor: colors.primaryLight,
+              borderColor: colors.primary,
+            }}
+          >
             <View className="flex-row items-center mb-3">
-              <Ionicons
-                name="time"
-                size={20}
-                color="#ea580c"
+              <ActivityIndicator
+                color={colors.primary}
+                size="small"
                 style={{ marginRight: 8 }}
               />
-              <Text className="text-sm font-bold text-orange-800">
-                Payment Pending Verification
+              <Text
+                className="text-sm font-bold"
+                style={{ color: colors.text }}
+              >
+                Verifying Payment...
               </Text>
             </View>
-            <Text className="text-xs text-orange-700 mb-3">
-              You have a payment waiting to be verified. Complete it in your
-              browser, then verify below.
+            <Text className="text-xs" style={{ color: colors.textSecondary }}>
+              Please wait while we verify your payment. This may take a few
+              seconds.
+            </Text>
+          </View>
+        )}
+
+        {/* PAYMENT PENDING - MANUAL VERIFICATION */}
+        {paystackReference && !isVerifying && !hasVerified && (
+          <View
+            className="mx-5 mb-5 p-4 rounded-xl border-2"
+            style={{
+              backgroundColor: colors.warningLight,
+              borderColor: colors.warning,
+            }}
+          >
+            <Text
+              className="text-sm font-bold mb-3"
+              style={{ color: colors.text }}
+            >
+              Payment in Progress
+            </Text>
+            <Text
+              className="text-xs mb-4"
+              style={{ color: colors.textSecondary }}
+            >
+              Completed payment on Paystack? Tap the button below to verify your
+              payment.
             </Text>
             <TouchableOpacity
-              className="bg-orange-600 p-3 rounded-xl flex-row items-center justify-center"
-              onPress={() => {
-                const recipientName = isCustomRecipient
-                  ? customName
-                  : selectedRecipient?.name;
-                handlePaymentVerification(paystackReference, recipientName);
-              }}
+              onPress={handleManualVerifyPayment}
               disabled={isVerifying}
+              className="px-4 py-3 rounded-lg flex-row items-center justify-center"
+              style={{
+                backgroundColor: colors.warning,
+              }}
             >
-              {isVerifying ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={18}
-                    color="#fff"
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text className="text-white font-bold">
-                    Check Payment Status
-                  </Text>
-                </>
-              )}
+              <Ionicons
+                name="checkmark-circle"
+                size={18}
+                color="#fff"
+                style={{ marginRight: 8 }}
+              />
+              <Text className="text-white font-bold text-sm">
+                Verify Payment
+              </Text>
             </TouchableOpacity>
           </View>
         )}
 
+        {/* SELECTED RECIPIENT */}
         {selectedRecipient && (
-          <View className="mx-5 mb-6 p-4 bg-green-50 rounded-xl border-2 border-green-200">
+          <View
+            className="mx-5 mb-6 p-4 rounded-xl border-2"
+            style={{
+              backgroundColor: colors.successLight,
+              borderColor: colors.success,
+            }}
+          >
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center flex-1">
                 <View
-                  className={`w-12 h-12 rounded-full justify-center items-center mr-3 ${selectedRecipient.color}`}
+                  className="w-12 h-12 rounded-full justify-center items-center mr-3"
+                  style={{ backgroundColor: colors.success }}
                 >
                   <Ionicons
                     name={selectedRecipient.icon}
@@ -564,10 +471,16 @@ export default function PaymentScreen() {
                   />
                 </View>
                 <View>
-                  <Text className="text-sm font-bold text-gray-800">
+                  <Text
+                    className="text-sm font-bold"
+                    style={{ color: colors.text }}
+                  >
                     {selectedRecipient.name}
                   </Text>
-                  <Text className="text-xs text-gray-500 mt-1">
+                  <Text
+                    className="text-xs mt-1"
+                    style={{ color: colors.textSecondary }}
+                  >
                     {selectedRecipient.category}
                   </Text>
                 </View>
@@ -578,15 +491,19 @@ export default function PaymentScreen() {
                   setIsCustomRecipient(false);
                 }}
               >
-                <Ionicons name="close-circle" size={24} color="#ef4444" />
+                <Ionicons name="close-circle" size={24} color={colors.error} />
               </TouchableOpacity>
             </View>
           </View>
         )}
 
+        {/* QUICK SELECT RECIPIENTS */}
         {!selectedRecipient && !isCustomRecipient && (
           <View className="mx-5 mb-6">
-            <Text className="text-sm font-semibold text-gray-700 mb-3">
+            <Text
+              className="text-sm font-semibold mb-3"
+              style={{ color: colors.text }}
+            >
               Quick Select Recipient
             </Text>
             <ScrollView
@@ -601,11 +518,15 @@ export default function PaymentScreen() {
                   onPress={() => handleSelectRecipient(recipient)}
                 >
                   <View
-                    className={`w-16 h-16 rounded-2xl justify-center items-center mb-2 ${recipient.color} shadow-md`}
+                    className="w-16 h-16 rounded-2xl justify-center items-center mb-2 shadow-md"
+                    style={{ backgroundColor: colors.primary }}
                   >
                     <Ionicons name={recipient.icon} size={28} color="#fff" />
                   </View>
-                  <Text className="text-xs text-gray-700 font-semibold text-center w-16">
+                  <Text
+                    className="text-xs font-semibold text-center w-16"
+                    style={{ color: colors.text }}
+                  >
                     {recipient.name.split(" ")[0]}
                   </Text>
                 </TouchableOpacity>
@@ -614,10 +535,16 @@ export default function PaymentScreen() {
                 className="items-center ml-2"
                 onPress={() => setShowRecipientModal(true)}
               >
-                <View className="w-16 h-16 rounded-2xl justify-center items-center mb-2 bg-gray-300 shadow-md">
+                <View
+                  className="w-16 h-16 rounded-2xl justify-center items-center mb-2 shadow-md"
+                  style={{ backgroundColor: colors.textTertiary }}
+                >
                   <Ionicons name="ellipsis-horizontal" size={28} color="#fff" />
                 </View>
-                <Text className="text-xs text-gray-700 font-semibold text-center w-16">
+                <Text
+                  className="text-xs font-semibold text-center w-16"
+                  style={{ color: colors.text }}
+                >
                   More
                 </Text>
               </TouchableOpacity>
@@ -625,20 +552,37 @@ export default function PaymentScreen() {
           </View>
         )}
 
+        {/* RECIPIENT MODAL */}
         <Modal
           visible={showRecipientModal}
           animationType="slide"
           transparent={true}
           onRequestClose={() => setShowRecipientModal(false)}
         >
-          <View className="flex-1 bg-black/50 justify-end">
-            <View className="bg-white rounded-t-3xl max-h-96">
-              <View className="flex-row items-center justify-between px-5 py-4 border-b border-gray-100">
-                <Text className="text-lg font-bold text-gray-800">
+          <View
+            className="flex-1 justify-end"
+            style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+          >
+            <View
+              className="rounded-t-3xl max-h-96"
+              style={{ backgroundColor: colors.card }}
+            >
+              <View
+                className="flex-row items-center justify-between px-5 py-4 border-b"
+                style={{ borderColor: colors.border }}
+              >
+                <Text
+                  className="text-lg font-bold"
+                  style={{ color: colors.text }}
+                >
                   Select Recipient
                 </Text>
                 <TouchableOpacity onPress={() => setShowRecipientModal(false)}>
-                  <Ionicons name="close" size={24} color="#999" />
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={colors.textSecondary}
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -646,147 +590,214 @@ export default function PaymentScreen() {
                 {PAYMENT_RECIPIENTS.map((recipient) => (
                   <TouchableOpacity
                     key={recipient.id}
-                    className="flex-row items-center p-4 border-b border-gray-100"
+                    className="flex-row items-center p-4 border-b"
+                    style={{ borderColor: colors.border }}
                     onPress={() => handleSelectRecipient(recipient)}
                   >
                     <View
-                      className={`w-12 h-12 rounded-full justify-center items-center mr-4 ${recipient.color}`}
+                      className="w-12 h-12 rounded-full justify-center items-center mr-4"
+                      style={{ backgroundColor: colors.primary }}
                     >
                       <Ionicons name={recipient.icon} size={20} color="#fff" />
                     </View>
                     <View className="flex-1">
-                      <Text className="text-sm font-bold text-gray-800">
+                      <Text
+                        className="text-sm font-bold"
+                        style={{ color: colors.text }}
+                      >
                         {recipient.name}
                       </Text>
-                      <Text className="text-xs text-gray-500 mt-1">
+                      <Text
+                        className="text-xs mt-1"
+                        style={{ color: colors.textSecondary }}
+                      >
                         {recipient.category}
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color="#999" />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={colors.textSecondary}
+                    />
                   </TouchableOpacity>
                 ))}
 
                 <TouchableOpacity
-                  className="flex-row items-center p-4 border-t-2 border-gray-200 mt-2"
+                  className="flex-row items-center p-4 border-t-2 mt-2"
+                  style={{ borderColor: colors.border }}
                   onPress={() => {
                     setIsCustomRecipient(true);
                     setShowRecipientModal(false);
                   }}
                 >
-                  <View className="w-12 h-12 rounded-full justify-center items-center mr-4 bg-gray-400">
+                  <View
+                    className="w-12 h-12 rounded-full justify-center items-center mr-4"
+                    style={{ backgroundColor: colors.textSecondary }}
+                  >
                     <Ionicons name="person-add" size={20} color="#fff" />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-sm font-bold text-gray-800">
+                    <Text
+                      className="text-sm font-bold"
+                      style={{ color: colors.text }}
+                    >
                       Custom Recipient
                     </Text>
-                    <Text className="text-xs text-gray-500 mt-1">
+                    <Text
+                      className="text-xs mt-1"
+                      style={{ color: colors.textSecondary }}
+                    >
                       Enter custom recipient name
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#999" />
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
                 </TouchableOpacity>
               </ScrollView>
             </View>
           </View>
         </Modal>
 
+        {/* CUSTOM RECIPIENT */}
         {isCustomRecipient && (
-          <View className="mx-5 mb-6 p-5 bg-white rounded-2xl border-2 border-gray-300">
-            <Text className="text-sm font-semibold text-gray-700 mb-3">
+          <View
+            className="mx-5 mb-6 p-5 rounded-2xl border-2"
+            style={{
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            }}
+          >
+            <Text
+              className="text-sm font-semibold mb-3"
+              style={{ color: colors.text }}
+            >
               Recipient Name
             </Text>
-            <View className="mb-4">
-              <View className="flex-row items-center border-2 border-gray-200 rounded-xl px-4 py-3">
-                <Ionicons
-                  name="person"
-                  size={20}
-                  color="#999"
-                  style={{ marginRight: 10 }}
-                />
-                <TextInput
-                  className="flex-1 text-base text-gray-800"
-                  placeholder="e.g. Bliss School"
-                  placeholderTextColor="#ccc"
-                  value={customName}
-                  onChangeText={setCustomName}
-                />
-              </View>
-            </View>
-            <TouchableOpacity
-              className="mt-3 p-2"
-              onPress={() => {
-                setIsCustomRecipient(false);
-                setCustomName("");
+            <View
+              className="flex-row items-center rounded-xl px-4 py-3 border-2"
+              style={{
+                backgroundColor: colors.inputBackground,
+                borderColor: colors.inputBorder,
               }}
             >
-              <Text className="text-sm text-blue-600 font-semibold">
-                Back to quick select
-              </Text>
-            </TouchableOpacity>
+              <Ionicons
+                name="person"
+                size={20}
+                color={colors.textSecondary}
+                style={{ marginRight: 10 }}
+              />
+              <TextInput
+                className="flex-1 text-base"
+                placeholder="e.g. Bliss School"
+                placeholderTextColor={colors.textTertiary}
+                value={customName}
+                onChangeText={setCustomName}
+                style={{ color: colors.text }}
+              />
+            </View>
           </View>
         )}
 
-        <View className="mx-5 mb-6 p-5 bg-white rounded-2xl">
-          <Text className="text-sm font-semibold text-gray-700 mb-3">
+        {/* AMOUNT */}
+        <View
+          className="mx-5 mb-6 p-5 rounded-2xl"
+          style={{ backgroundColor: colors.card }}
+        >
+          <Text
+            className="text-sm font-semibold mb-3"
+            style={{ color: colors.text }}
+          >
             Payment Amount
           </Text>
-          <View className="flex-row items-center border-2 border-gray-200 rounded-xl px-4 py-3">
-            <Text className="text-2xl font-bold text-gray-800 mr-2">
+          <View
+            className="flex-row items-center rounded-xl px-4 py-3 border-2"
+            style={{
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.inputBorder,
+            }}
+          >
+            <Text
+              className="text-2xl font-bold mr-2"
+              style={{ color: colors.text }}
+            >
               {account?.currency === "GHS" ? "₵" : "$"}
             </Text>
             <TextInput
-              className="flex-1 text-3xl font-bold text-gray-800"
+              className="flex-1 text-3xl font-bold"
               placeholder="0.00"
-              placeholderTextColor="#ccc"
+              placeholderTextColor={colors.textTertiary}
               keyboardType="decimal-pad"
               value={amount}
               onChangeText={handleAmountChange}
+              style={{ color: colors.text }}
             />
           </View>
           {amount && selectedMethod === "wallet" && (
             <View className="mt-3 flex-row justify-between">
-              <Text className="text-sm text-gray-600">
+              <Text className="text-sm" style={{ color: colors.textSecondary }}>
                 Amount: {formatAmount(amount)}
               </Text>
-              <Text className="text-sm text-gray-600">
+              <Text className="text-sm" style={{ color: colors.textSecondary }}>
                 Remaining: {formatAmount(balance - parseFloat(amount))}
               </Text>
             </View>
           )}
         </View>
 
+        {/* PAYMENT METHOD */}
         <View className="mx-5 mb-6">
-          <Text className="text-sm font-semibold text-gray-700 mb-3">
+          <Text
+            className="text-sm font-semibold mb-3"
+            style={{ color: colors.text }}
+          >
             Payment Method
           </Text>
           <View className="space-y-2">
             {PAYMENT_METHODS.map((method) => (
               <TouchableOpacity
                 key={method.id}
-                className={`flex-row items-center p-4 rounded-xl border-2 ${
-                  selectedMethod === method.id
-                    ? "border-green-500 bg-green-50"
-                    : "border-gray-200 bg-white"
-                }`}
+                className="flex-row items-center p-4 rounded-xl border-2"
+                style={{
+                  backgroundColor: colors.card,
+                  borderColor:
+                    selectedMethod === method.id
+                      ? colors.success
+                      : colors.border,
+                }}
                 onPress={() => setSelectedMethod(method.id)}
               >
                 <View
-                  className={`w-12 h-12 rounded-full justify-center items-center mr-3 ${method.color}`}
+                  className="w-12 h-12 rounded-full justify-center items-center mr-3"
+                  style={{
+                    backgroundColor:
+                      method.id === "card" ? colors.primary : colors.success,
+                  }}
                 >
                   <Ionicons name={method.icon} size={24} color="#fff" />
                 </View>
                 <View className="flex-1">
-                  <Text className="font-semibold text-gray-800">
+                  <Text
+                    className="font-semibold"
+                    style={{ color: colors.text }}
+                  >
                     {method.label}
                   </Text>
                 </View>
                 <View
-                  className={`w-5 h-5 rounded-full border-2 items-center justify-center ${
-                    selectedMethod === method.id
-                      ? "border-green-500 bg-green-500"
-                      : "border-gray-300"
-                  }`}
+                  className="w-5 h-5 rounded-full border-2 items-center justify-center"
+                  style={{
+                    borderColor:
+                      selectedMethod === method.id
+                        ? colors.success
+                        : colors.border,
+                    backgroundColor:
+                      selectedMethod === method.id
+                        ? colors.success
+                        : "transparent",
+                  }}
                 >
                   {selectedMethod === method.id && (
                     <Ionicons name="checkmark" size={14} color="#fff" />
@@ -797,14 +808,26 @@ export default function PaymentScreen() {
           </View>
         </View>
 
-        <View className="mx-5 mb-6 p-5 bg-white rounded-2xl">
-          <Text className="text-sm font-semibold text-gray-700 mb-3">
+        {/* DESCRIPTION */}
+        <View
+          className="mx-5 mb-6 p-5 rounded-2xl"
+          style={{ backgroundColor: colors.card }}
+        >
+          <Text
+            className="text-sm font-semibold mb-3"
+            style={{ color: colors.text }}
+          >
             Description (Optional)
           </Text>
           <TextInput
-            className="border border-gray-200 rounded-xl px-4 py-3 text-gray-800"
+            className="border rounded-xl px-4 py-3"
+            style={{
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.inputBorder,
+              color: colors.text,
+            }}
             placeholder="Add a note..."
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textTertiary}
             value={description}
             onChangeText={setDescription}
             multiline
@@ -812,49 +835,53 @@ export default function PaymentScreen() {
           />
         </View>
 
+        {/* TERMS */}
         <View className="mx-5 mb-6 flex-row items-start">
           <TouchableOpacity
-            className={`w-5 h-5 rounded border-2 mr-3 mt-0.5 justify-center items-center ${
-              agreedToTerms
-                ? "bg-green-500 border-green-500"
-                : "border-gray-300"
-            }`}
+            className="w-5 h-5 rounded border-2 mr-3 mt-0.5 justify-center items-center"
+            style={{
+              borderColor: agreedToTerms ? colors.success : colors.border,
+              backgroundColor: agreedToTerms ? colors.success : "transparent",
+            }}
             onPress={() => setAgreedToTerms(!agreedToTerms)}
           >
             {agreedToTerms && (
               <Ionicons name="checkmark" size={14} color="#fff" />
             )}
           </TouchableOpacity>
-          <Text className="flex-1 text-sm text-gray-600">
+          <Text className="flex-1 text-sm" style={{ color: colors.text }}>
             I agree to the{" "}
-            <Text className="text-green-600 font-semibold">
+            <Text style={{ color: colors.success, fontWeight: "600" }}>
               Terms & Conditions
             </Text>{" "}
             for this payment.
           </Text>
         </View>
 
+        {/* PAY BUTTON */}
         <View className="mx-5 mb-6">
           <TouchableOpacity
-            className={`p-4 rounded-xl flex-row justify-center items-center ${
-              isValidAmount &&
-              isValidRecipient &&
-              agreedToTerms &&
-              !isPaystackInitializing &&
-              !isVerifying
-                ? "bg-green-500"
-                : "bg-gray-300"
-            }`}
+            className="p-4 rounded-xl flex-row justify-center items-center"
+            style={{
+              backgroundColor:
+                isValidAmount &&
+                isValidRecipient &&
+                agreedToTerms &&
+                !isPaymentInitializing &&
+                !isVerifying
+                  ? colors.success
+                  : colors.textTertiary,
+            }}
             onPress={handlePayment}
             disabled={
               !isValidAmount ||
               !isValidRecipient ||
               !agreedToTerms ||
-              isPaystackInitializing ||
+              isPaymentInitializing ||
               isVerifying
             }
           >
-            {isPaystackInitializing || isVerifying ? (
+            {isPaymentInitializing || isVerifying ? (
               <>
                 <ActivityIndicator
                   color="#fff"
@@ -881,135 +908,32 @@ export default function PaymentScreen() {
           </TouchableOpacity>
         </View>
 
-        <Modal
-          visible={showMobileMoneyModal}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setShowMobileMoneyModal(false)}
+        {/* SECURITY INFO */}
+        <View
+          className="mx-5 mb-10 p-4 rounded-xl border"
+          style={{
+            backgroundColor: colors.primaryLight,
+            borderColor: colors.primary,
+          }}
         >
-          <View className="flex-1 bg-black/50 justify-end">
-            <View className="bg-white rounded-t-3xl max-h-screen p-5">
-              <View className="flex-row items-center justify-between mb-4 pb-4 border-b border-gray-200">
-                <Text className="text-xl font-bold text-gray-800">
-                  Mobile Money Payment
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setShowMobileMoneyModal(false)}
-                >
-                  <Ionicons name="close" size={24} color="#999" />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView>
-                <View className="mb-6">
-                  <Text className="text-sm font-semibold text-gray-700 mb-3">
-                    Select Network
-                  </Text>
-                  <View className="flex-row justify-between gap-3">
-                    {NETWORKS.map((network) => (
-                      <TouchableOpacity
-                        key={network.id}
-                        className={`flex-1 py-4 px-3 rounded-xl border-2 items-center ${
-                          selectedNetwork === network.id
-                            ? "bg-blue-50 border-blue-600"
-                            : "bg-gray-50 border-gray-300"
-                        }`}
-                        onPress={() => setSelectedNetwork(network.id)}
-                      >
-                        <Text className="text-2xl mb-2">📱</Text>
-                        <Text
-                          className={`font-semibold text-sm ${
-                            selectedNetwork === network.id
-                              ? "text-blue-600"
-                              : "text-gray-700"
-                          }`}
-                        >
-                          {network.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                <View className="mb-6">
-                  <Text className="text-sm font-semibold text-gray-700 mb-3">
-                    Phone Number
-                  </Text>
-                  <View className="flex-row items-center border-2 border-gray-200 rounded-xl px-4 py-3">
-                    <Text className="text-gray-700 font-semibold mr-2">
-                      +233
-                    </Text>
-                    <TextInput
-                      className="flex-1 text-base text-gray-900"
-                      placeholder="501234567"
-                      keyboardType="phone-pad"
-                      maxLength={9}
-                      value={phoneNumber}
-                      onChangeText={handlePhoneChange}
-                    />
-                    {phoneNumber && phoneNumber.length === 9 && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color="#22c55e"
-                      />
-                    )}
-                  </View>
-                  <Text className="text-xs text-gray-500 mt-2">
-                    Enter 9 digits (without +233)
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  className={`p-4 rounded-xl items-center ${
-                    phoneNumber.length === 9 &&
-                    selectedNetwork &&
-                    !isPaystackInitializing
-                      ? "bg-blue-600"
-                      : "bg-gray-300"
-                  }`}
-                  onPress={handleMobileMoneyInitiate}
-                  disabled={
-                    phoneNumber.length !== 9 ||
-                    !selectedNetwork ||
-                    isPaystackInitializing
-                  }
-                >
-                  {isPaystackInitializing ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text className="text-white font-bold text-lg">
-                      Proceed to Payment
-                    </Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  className="mt-3 p-3"
-                  onPress={() => setShowMobileMoneyModal(false)}
-                >
-                  <Text className="text-center text-gray-600 font-semibold">
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        <View className="mx-5 mb-10 p-4 bg-blue-50 rounded-xl border border-blue-200">
           <View className="flex-row">
             <Ionicons
               name="shield-checkmark"
               size={20}
-              color="#0284c7"
+              color={colors.primary}
               style={{ marginRight: 10 }}
             />
             <View className="flex-1">
-              <Text className="font-semibold text-blue-800 text-sm">
+              <Text
+                className="font-semibold text-sm"
+                style={{ color: colors.text }}
+              >
                 Secure Payment
               </Text>
-              <Text className="text-xs text-blue-700 mt-1">
+              <Text
+                className="text-xs mt-1"
+                style={{ color: colors.textSecondary }}
+              >
                 Your payment is protected with Paystack end-to-end encryption.
               </Text>
             </View>

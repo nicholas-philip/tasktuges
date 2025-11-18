@@ -1,4 +1,4 @@
-// src/(tabs)/index.jsx
+// src/(tabs)/index.jsx - FIXED WITH THEME
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
@@ -22,15 +22,19 @@ import {
 } from "../hooks/useWallet";
 import { useGetAccountDetails } from "../hooks/useAccount";
 import SafeScreen from "./../../components/SafeScreen";
+import { useTheme } from "../context/ThemeContext";
 
 import { useAuthStore } from "../../store/authStore";
 
 export default function HomeScreen() {
   const { user } = useAuthStore();
+  const { colors, isDarkMode } = useTheme();
   const router = useRouter();
   const [visible, setVisible] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [greeting, setGreeting] = useState("");
+  const [greetingEmoji, setGreetingEmoji] = useState("");
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -67,6 +71,19 @@ export default function HomeScreen() {
   const recentTransactions = recentTransactionsData?.transactions || [];
   const stats = statsData?.last30Days || {};
 
+  // Get time-based greeting
+  const getTimeBasedGreeting = () => {
+    const hour = new Date().getHours();
+
+    if (hour >= 5 && hour < 12) {
+      return { text: "Good Morning", emoji: "🌅" };
+    } else if (hour >= 12 && hour < 18) {
+      return { text: "Good Afternoon", emoji: "☀️" };
+    } else {
+      return { text: "Good Evening", emoji: "🌙" };
+    }
+  };
+
   // Check if welcome message should be shown
   useEffect(() => {
     checkWelcomeStatus();
@@ -78,6 +95,9 @@ export default function HomeScreen() {
       const currentTime = Date.now();
 
       if (!lastWelcomeTime || currentTime - parseInt(lastWelcomeTime) > 60000) {
+        const { text, emoji } = getTimeBasedGreeting();
+        setGreeting(text);
+        setGreetingEmoji(emoji);
         setShowWelcome(true);
         await AsyncStorage.setItem("lastWelcomeTime", currentTime.toString());
 
@@ -115,7 +135,7 @@ export default function HomeScreen() {
         }, 60000);
       }
     } catch (error) {
-      console.error("Error checking welcome status:", error);
+      // Error handling
     }
   };
 
@@ -174,28 +194,45 @@ export default function HomeScreen() {
   // Get transaction color
   const getTransactionColor = (type) => {
     return ["deposit", "transfer_in"].includes(type)
-      ? "text-green-500"
-      : "text-red-500";
+      ? colors.success
+      : colors.error;
   };
 
   // Show loading spinner
   if (isLoading) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-50">
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View
+        style={{ backgroundColor: colors.background }}
+        className="flex-1 justify-center items-center"
+      >
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
+  const gradientColors = isDarkMode
+    ? ["#1e293b", "#0f172a", "#0f172a"]
+    : [colors.background, colors.background, colors.background];
+
   return (
     <SafeScreen>
       <ScrollView
-        className="flex-1 bg-gray-50"
+        style={{ backgroundColor: colors.background }}
+        className="flex-1"
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
         }
       >
-        <View className="bg-gradient-to-b from-blue-600 to-blue-800 pb-8 rounded-b-3xl shadow-lg">
+        <LinearGradient
+          colors={gradientColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          className="pb-8 rounded-b-3xl shadow-lg"
+        >
           {/* Header */}
           <View className="p-3">
             <View className="flex-row justify-between items-center mt-8">
@@ -204,18 +241,22 @@ export default function HomeScreen() {
                 onPress={() => router.push("/(tabs)/profile")}
                 className="w-10 h-10 bg-white/20 rounded-full justify-center items-center"
               >
-                <Ionicons name="person-outline" size={22} color="black" />
+                <Ionicons
+                  name="person-outline"
+                  size={22}
+                  color={isDarkMode ? "white" : "black"}
+                />
               </TouchableOpacity>
 
               {/* Notification Icon */}
               <TouchableOpacity
                 onPress={() => router.push("/(tabs)/utils/notifications")}
-                className="w-10 h-10 bg-white/20 rounded-full justify-center items-center"
+                className="w-10 h-10 bg-white/20 rounded-full justify-center items-center relative"
               >
                 <Ionicons
                   name="notifications-outline"
                   size={22}
-                  color="black"
+                  color={isDarkMode ? "white" : "black"}
                 />
                 {/* Notification Badge */}
                 <View className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full justify-center items-center">
@@ -232,9 +273,12 @@ export default function HomeScreen() {
                   transform: [{ translateY: slideAnim }],
                 }}
               >
-                <View className="bg-white/10 rounded-2xl p-4 mt-4 backdrop-blur-lg">
+                <View
+                  style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}
+                  className="rounded-2xl p-4 mt-4 backdrop-blur-lg"
+                >
                   <Text className="text-2xl font-bold text-black">
-                    Welcome Back! 👋
+                    {greeting} {greetingEmoji}
                   </Text>
                   <Text className="text-sm text-black opacity-80 mt-1">
                     Manage your finances
@@ -247,7 +291,7 @@ export default function HomeScreen() {
           {/* Visa Card */}
           <View className="mx-5 my-4">
             <LinearGradient
-              colors={["#1e3a8a", "#3b82f6", "#60a5fa"]}
+              colors={["#4d4949ff", "#000000ff", "#21221cff"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               className="rounded-3xl p-8 shadow-2xl"
@@ -321,73 +365,140 @@ export default function HomeScreen() {
               </View>
             </LinearGradient>
           </View>
-        </View>
+        </LinearGradient>
 
         {/* Quick Actions */}
-        <View className="flex-row justify-around px-5 -mt-5 mb-5 ">
+        <View className="flex-row justify-around px-5 mt-6 mb-5">
           <TouchableOpacity
             className="items-center"
             onPress={() => router.push("deposit")}
           >
-            <View className="w-16 h-16 bg-white rounded-2xl justify-center items-center mb-2 shadow-md">
-              <Ionicons name="add" size={28} color="#22c55e" />
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
+              className="w-16 h-16 rounded-2xl justify-center items-center mb-2 shadow-md border"
+            >
+              <Ionicons name="add" size={28} color={colors.success} />
             </View>
-            <Text className="text-xs font-bold text-black">Deposit</Text>
+            <Text style={{ color: colors.text }} className="text-xs font-bold">
+              Deposit
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             className="items-center"
             onPress={() => router.push("withdraw")}
           >
-            <View className="w-16 h-16 bg-white rounded-2xl justify-center items-center mb-2 shadow-md">
-              <Ionicons name="remove" size={28} color="#ef4444" />
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
+              className="w-16 h-16 rounded-2xl justify-center items-center mb-2 shadow-md border"
+            >
+              <Ionicons name="remove" size={28} color={colors.error} />
             </View>
-            <Text className="text-xs font-bold text-black">Withdraw</Text>
+            <Text style={{ color: colors.text }} className="text-xs font-bold">
+              Withdraw
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             className="items-center"
             onPress={() => router.push("transfer")}
           >
-            <View className="w-16 h-16 bg-white rounded-2xl justify-center items-center mb-2 shadow-md">
-              <Ionicons name="swap-horizontal" size={28} color="#3b82f6" />
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
+              className="w-16 h-16 rounded-2xl justify-center items-center mb-2 shadow-md border"
+            >
+              <Ionicons
+                name="swap-horizontal"
+                size={28}
+                color={colors.primary}
+              />
             </View>
-            <Text className="text-xs font-bold text-black">Transfer</Text>
+            <Text style={{ color: colors.text }} className="text-xs font-bold">
+              Transfer
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             className="items-center"
             onPress={() => router.push("payment")}
           >
-            <View className="w-16 h-16 bg-white rounded-2xl justify-center items-center mb-2 shadow-md">
-              <Ionicons name="card" size={28} color="#f97316" />
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
+              className="w-16 h-16 rounded-2xl justify-center items-center mb-2 shadow-md border"
+            >
+              <Ionicons name="card" size={28} color={colors.warning} />
             </View>
-            <Text className="text-xs font-bold text-black">Payment</Text>
+            <Text style={{ color: colors.text }} className="text-xs font-bold">
+              Payment
+            </Text>
           </TouchableOpacity>
         </View>
 
         {/* Statistics */}
         {Object.keys(stats).length > 0 && (
-          <View className="mx-5 mb-5 p-5 bg-white rounded-2xl shadow-sm">
-            <Text className="text-lg font-bold text-gray-800 mb-4">
+          <View
+            style={{
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            }}
+            className="mx-5 mb-5 p-5 rounded-2xl shadow-sm border"
+          >
+            <Text
+              style={{ color: colors.text }}
+              className="text-lg font-bold mb-4"
+            >
               Last 30 Days
             </Text>
             <View className="flex-row justify-between">
               <View className="flex-1 mr-2">
-                <Text className="text-xs text-gray-600">Deposits</Text>
-                <Text className="text-xl font-bold text-green-600 mt-1">
+                <Text
+                  style={{ color: colors.textTertiary }}
+                  className="text-xs"
+                >
+                  Deposits
+                </Text>
+                <Text
+                  style={{ color: colors.success }}
+                  className="text-xl font-bold mt-1"
+                >
                   {formatAmount(stats.deposits?.total || 0)}
                 </Text>
-                <Text className="text-xs text-gray-400 mt-1">
+                <Text
+                  style={{ color: colors.textTertiary }}
+                  className="text-xs mt-1"
+                >
                   {stats.deposits?.count || 0} transactions
                 </Text>
               </View>
               <View className="flex-1 ml-2">
-                <Text className="text-xs text-gray-600">Withdrawals</Text>
-                <Text className="text-xl font-bold text-red-600 mt-1">
+                <Text
+                  style={{ color: colors.textTertiary }}
+                  className="text-xs"
+                >
+                  Withdrawals
+                </Text>
+                <Text
+                  style={{ color: colors.error }}
+                  className="text-xl font-bold mt-1"
+                >
                   {formatAmount(stats.withdrawals?.total || 0)}
                 </Text>
-                <Text className="text-xs text-gray-400 mt-1">
+                <Text
+                  style={{ color: colors.textTertiary }}
+                  className="text-xs mt-1"
+                >
                   {stats.withdrawals?.count || 0} transactions
                 </Text>
               </View>
@@ -396,29 +507,42 @@ export default function HomeScreen() {
         )}
 
         {/* Recent Transactions */}
-        <View className="mx-5 mb-10 p-5 bg-white rounded-2xl shadow-sm">
+        <View
+          style={{
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          }}
+          className="mx-5 mb-10 p-5 rounded-2xl shadow-sm border"
+        >
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-lg font-bold text-gray-800">
+            <Text style={{ color: colors.text }} className="text-lg font-bold">
               Recent Transactions
             </Text>
             <TouchableOpacity
               onPress={() => router.push("/(tabs)/utils/transactions")}
             >
-              <Text className="text-sm text-blue-600 font-semibold">
+              <Text
+                style={{ color: colors.primary }}
+                className="text-sm font-semibold"
+              >
                 See All
               </Text>
             </TouchableOpacity>
           </View>
 
           {!recentTransactions || recentTransactions.length === 0 ? (
-            <Text className="text-center text-gray-400 py-5">
+            <Text
+              style={{ color: colors.textTertiary }}
+              className="text-center py-5"
+            >
               No transactions yet
             </Text>
           ) : (
             recentTransactions.slice(0, 5).map((transaction) => (
               <TouchableOpacity
                 key={transaction._id}
-                className="flex-row items-center py-3 border-b border-gray-100"
+                className="flex-row items-center py-3 border-b"
+                style={{ borderColor: colors.separator }}
                 onPress={() =>
                   router.push({
                     pathname: "/(tabs)/utils/transaction-detail",
@@ -427,34 +551,40 @@ export default function HomeScreen() {
                 }
               >
                 <View
-                  className={`w-10 h-10 rounded-full justify-center items-center mr-3 ${
-                    ["deposit", "transfer_in"].includes(transaction.type)
-                      ? "bg-green-100"
-                      : "bg-red-100"
-                  }`}
+                  style={{
+                    backgroundColor: ["deposit", "transfer_in"].includes(
+                      transaction.type
+                    )
+                      ? colors.successLight
+                      : colors.errorLight,
+                  }}
+                  className="w-10 h-10 rounded-full justify-center items-center mr-3"
                 >
                   <Ionicons
                     name={getTransactionIcon(transaction.type)}
                     size={20}
-                    color={
-                      ["deposit", "transfer_in"].includes(transaction.type)
-                        ? "#22c55e"
-                        : "#ef4444"
-                    }
+                    color={getTransactionColor(transaction.type)}
                   />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-sm font-semibold text-gray-800">
+                  <Text
+                    style={{ color: colors.text }}
+                    className="text-sm font-semibold"
+                  >
                     {transaction.type.replace(/_/g, " ").toUpperCase()}
                   </Text>
-                  <Text className="text-xs text-gray-400 mt-1">
+                  <Text
+                    style={{ color: colors.textTertiary }}
+                    className="text-xs mt-1"
+                  >
                     {new Date(transaction.createdAt).toLocaleDateString()}
                   </Text>
                 </View>
                 <Text
-                  className={`text-base font-bold ${getTransactionColor(
-                    transaction.type
-                  )}`}
+                  style={{
+                    color: getTransactionColor(transaction.type),
+                  }}
+                  className="text-base font-bold"
                 >
                   {["deposit", "transfer_in"].includes(transaction.type)
                     ? "+"

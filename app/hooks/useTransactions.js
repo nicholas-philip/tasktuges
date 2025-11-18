@@ -1,4 +1,4 @@
-// ================== app/hooks/useTransactions.js (COMPLETE FIX) ==================
+// ================== app/hooks/useTransactions.js ==================
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "./useApi";
@@ -10,11 +10,6 @@ export function useTransferMobileMoneyDirect() {
 
   return useMutation({
     mutationFn: async (transferData) => {
-      console.log("📱 Transferring mobile money directly:", {
-        amount: transferData.amount,
-        network: transferData.network,
-      });
-
       const response = await apiFetch("/transactions/transfer", {
         method: "POST",
         body: transferData,
@@ -27,14 +22,11 @@ export function useTransferMobileMoneyDirect() {
       return response;
     },
     onSuccess: (data) => {
-      console.log("✅ Mobile money transfer successful");
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["account"] });
     },
-    onError: (error) => {
-      console.error("❌ Mobile money transfer failed:", error.message);
-    },
+    onError: (error) => {},
   });
 }
 
@@ -47,11 +39,6 @@ export function useTransferViaPaystack() {
 
   return useMutation({
     mutationFn: async (transferData) => {
-      console.log("🔄 Processing transfer via Paystack:", {
-        amount: transferData.amount,
-        paymentMethod: transferData.paymentMethod,
-      });
-
       // For bank transfers, call verify endpoint
       const reference = transferData.reference;
       if (!reference) {
@@ -73,15 +60,12 @@ export function useTransferViaPaystack() {
       return response;
     },
     onSuccess: (data) => {
-      console.log("✅ Transfer via Paystack successful");
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["account"] });
     },
-    onError: (error) => {
-      console.error("❌ Transfer via Paystack failed:", error.message);
-    },
+    onError: (error) => {},
   });
 }
 
@@ -92,8 +76,6 @@ export function useGetTransactions(params = {}) {
   return useQuery({
     queryKey: ["transactions", params],
     queryFn: async () => {
-      console.log("📜 Fetching transaction history...");
-
       const response = await apiFetch(
         `/transactions/history${queryString ? `?${queryString}` : ""}`
       );
@@ -114,8 +96,6 @@ export function useGetSingleTransaction(transactionId) {
   return useQuery({
     queryKey: ["transaction", transactionId],
     queryFn: async () => {
-      console.log("📋 Fetching transaction:", transactionId);
-
       const response = await apiFetch(`/transactions/${transactionId}`);
 
       if (!response.success) {
@@ -135,10 +115,6 @@ export function useDeposit() {
 
   return useMutation({
     mutationFn: async (depositData) => {
-      console.log("💰 Processing deposit:", {
-        amount: depositData.amount,
-      });
-
       const response = await apiFetch("/transactions/deposit", {
         method: "POST",
         body: depositData,
@@ -151,14 +127,11 @@ export function useDeposit() {
       return response;
     },
     onSuccess: (data) => {
-      console.log("✅ Deposit successful");
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["account"] });
     },
-    onError: (error) => {
-      console.error("❌ Deposit failed:", error.message);
-    },
+    onError: (error) => {},
   });
 }
 
@@ -168,10 +141,6 @@ export function useWithdraw() {
 
   return useMutation({
     mutationFn: async (withdrawData) => {
-      console.log("💸 Processing withdrawal:", {
-        amount: withdrawData.amount,
-      });
-
       const response = await apiFetch("/transactions/withdraw", {
         method: "POST",
         body: withdrawData,
@@ -184,14 +153,11 @@ export function useWithdraw() {
       return response;
     },
     onSuccess: (data) => {
-      console.log("✅ Withdrawal successful");
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["account"] });
     },
-    onError: (error) => {
-      console.error("❌ Withdrawal failed:", error.message);
-    },
+    onError: (error) => {},
   });
 }
 
