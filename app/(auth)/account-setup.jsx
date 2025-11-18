@@ -25,7 +25,7 @@ import { useSetupAccount } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
 import { Image } from "react-native";
-import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME
+import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME\
 
 export default function AccountSetup() {
   const router = useRouter();
