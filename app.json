@@ -36,15 +36,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "navigationBar": {
-        "visible": false,
-        "barStyle": "dark-content"
-      },
       "package": "com.anonymous.Frontend"
-    },
-    "androidNavigationBar": {
-      "visible": false,
-      "barStyle": "dark-content"
     },
     "web": {
       "output": "static",

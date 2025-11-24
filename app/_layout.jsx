@@ -1,11 +1,12 @@
-// app/_layout.jsx (ROOT LAYOUT WITH THEME)
+// app/_layout.jsx (ROOT LAYOUT WITH THEME & HIDDEN NAV BAR)
 import { Stack } from "expo-router";
 import "../global.css";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { View, ActivityIndicator } from "react-native";
+import { Platform } from "react-native";
 import { QueryClientProvider } from "@tanstack/react-query";
+import * as NavigationBar from "expo-navigation-bar";
 
 import { useAuthStore } from "../store/authStore";
 import { queryClient } from "./lib/queryClient";
@@ -13,6 +14,7 @@ import { ThemeProvider, useTheme } from "./context/ThemeContext";
 
 function RootLayoutContent() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
+  const getCurrentUser = useAuthStore((state) => state.getCurrentUser);
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -25,6 +27,14 @@ function RootLayoutContent() {
 
   const { isDarkMode, colors } = useTheme();
 
+  // ✅ HIDE ANDROID NAVIGATION BAR
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      NavigationBar.setVisibilityAsync("hidden");
+      NavigationBar.setBehaviorAsync("overlay-swipe");
+    }
+  }, []);
+
   // Single effect: Initialize auth once on mount
   useEffect(() => {
     let mounted = true;
@@ -35,15 +45,42 @@ function RootLayoutContent() {
 
         if (mounted) {
           if (result?.user && result?.token) {
-            const needsEmailVerification = !result.user.emailVerified;
+            // Refresh user from server when a token exists to avoid stale local data
+            // (ensures account.status and profileCompleted are accurate)
+            let fresh = null;
+            try {
+              const refreshed = await getCurrentUser();
+              if (refreshed?.success && refreshed.user) {
+                fresh = { user: refreshed.user, account: refreshed.account };
+              }
+            } catch (_e) {
+              // ignore refresh errors and fall back to local result
+              fresh = null;
+            }
 
-            const needsAccountSetup =
-              !result.user.profileCompleted ||
-              result.user.account?.status === "pending" ||
-              !result.user.account;
+            const effective = fresh?.user
+              ? { user: fresh.user, account: fresh.account }
+              : { user: result.user, account: result.user.account };
+
+            const needsEmailVerification = !effective.user.emailVerified;
+
+            // If we couldn't refresh from server (fresh === null), be conservative
+            // and require account setup so users are not routed into the app
+            // based on possibly-stale local data.
+            let needsAccountSetup =
+              !effective.user.profileCompleted ||
+              effective.user.account?.status === "pending" ||
+              !effective.user.account;
+
+            if (!fresh) {
+              console.warn(
+                "⚠️ [RootLayout] Server refresh failed — forcing requiresAccountSetup to true to avoid premature navigation"
+              );
+              needsAccountSetup = true;
+            }
 
             setAuthState({
-              user: result.user,
+              user: effective.user,
               token: result.token,
               requiresEmailVerification: needsEmailVerification,
               requiresAccountSetup: needsAccountSetup,
@@ -52,7 +89,7 @@ function RootLayoutContent() {
 
           setIsInitialized(true);
         }
-      } catch (error) {
+      } catch (_error) {
         if (mounted) {
           setIsInitialized(true);
         }
@@ -64,7 +101,7 @@ function RootLayoutContent() {
     return () => {
       mounted = false;
     };
-  }, [checkAuth]);
+  }, [checkAuth, getCurrentUser]);
 
   // Effect: Re-check auth state when user/token changes
   useEffect(() => {
@@ -101,7 +138,10 @@ function RootLayoutContent() {
           screenOptions={{
             headerShown: false,
             animationEnabled: false,
-            contentStyle: { backgroundColor: colors.background },
+            // Provide top padding so stack content does not sit under the global TopNav
+            contentStyle: {
+              backgroundColor: colors.background,
+            },
           }}
         >
           <Stack.Screen name="(splashScreen)" />
@@ -119,7 +159,9 @@ function RootLayoutContent() {
           screenOptions={{
             headerShown: false,
             animationEnabled: false,
-            contentStyle: { backgroundColor: colors.background },
+            contentStyle: {
+              backgroundColor: colors.background,
+            },
           }}
         >
           <Stack.Screen name="(auth)" />
@@ -137,7 +179,9 @@ function RootLayoutContent() {
           screenOptions={{
             headerShown: false,
             animationEnabled: false,
-            contentStyle: { backgroundColor: colors.background },
+            contentStyle: {
+              backgroundColor: colors.background,
+            },
           }}
         >
           <Stack.Screen name="(auth)" />
@@ -155,7 +199,10 @@ function RootLayoutContent() {
           screenOptions={{
             headerShown: false,
             animationEnabled: false,
-            contentStyle: { backgroundColor: colors.background },
+            contentStyle: {
+              backgroundColor: colors.background,
+              paddingTop: 72,
+            },
           }}
         >
           <Stack.Screen

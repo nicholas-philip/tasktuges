@@ -1,4 +1,4 @@
-// app/(tabs)/deposit.jsx - WITH THEME
+// app/(tabs)/deposit.jsx - WITH STICKY HEADER
 import React, { useState } from "react";
 import {
   View,
@@ -11,18 +11,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  Dimensions,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { usePaystackInitialize, usePaystackVerify } from "../hooks/usePayment";
 import { useGetAccountDetails } from "../hooks/useAccount";
 import { useTheme } from "../context/ThemeContext";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
+import StickyHeader from "../../components/StickyHeader";
 import { useFocusEffect } from "expo-router";
 
 export default function DepositScreen() {
+  const router = useRouter();
   const { user } = useAuthStore();
   const { colors } = useTheme();
   const { data: accountData } = useGetAccountDetails();
+  const screenWidth = Dimensions.get("window").width;
 
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
@@ -32,9 +38,9 @@ export default function DepositScreen() {
   const [paystackReference, setPaystackReference] = useState(null);
 
   const NETWORKS = [
-    { id: "MTN", name: "MTN" },
-    { id: "VODAFONE", name: "Vodafone" },
-    { id: "TIGO", name: "Tigo" },
+    { id: "MTN", name: "MTN", color: "#FFCC00" },
+    { id: "VODAFONE", name: "Vodafone", color: "#FF0000" },
+    { id: "TIGO", name: "Tigo", color: "#FFC72C" },
   ];
 
   const { mutate: initializeDeposit, isPending: isInitializing } =
@@ -127,12 +133,9 @@ export default function DepositScreen() {
             });
 
             Alert.alert(
-              "Redirecting",
-              `You will be redirected to Paystack to complete your deposit via ${networkToSend}.`,
-              [
-                { text: "Cancel", onPress: () => setStep(1) },
-                { text: "OK", onPress: () => {} },
-              ]
+              "Redirecting to Paystack",
+              `Complete your deposit via ${networkToSend}.`,
+              [{ text: "OK", onPress: () => {} }]
             );
           }
         },
@@ -147,8 +150,8 @@ export default function DepositScreen() {
     verifyDeposit(reference, {
       onSuccess: (data) => {
         Alert.alert(
-          "Success! 🎉",
-          `Deposit of ₵${amount} completed.\n\nNew Balance: ₵${data.newBalance?.toLocaleString()}`,
+          "✅ Success!",
+          `Deposit of ₵${parseFloat(amount).toLocaleString()} completed.\n\nNew Balance: ₵${data.newBalance?.toLocaleString()}`,
           [
             {
               text: "Done",
@@ -185,6 +188,7 @@ export default function DepositScreen() {
     setPaystackReference(null);
   };
 
+  // ================== PROCESSING STEP ==================
   if (step === 2) {
     return (
       <View
@@ -193,53 +197,93 @@ export default function DepositScreen() {
       >
         <View
           style={{ backgroundColor: colors.card }}
-          className="rounded-2xl p-8 items-center w-full max-w-sm"
+          className="rounded-3xl p-8 items-center w-full max-w-sm"
         >
           <ActivityIndicator size="large" color={colors.primary} />
           <Text
             style={{ color: colors.text }}
-            className="text-xl font-bold mt-6"
+            className="text-2xl font-bold mt-6"
           >
             Processing Deposit
           </Text>
 
           <Text
             style={{ color: colors.textSecondary }}
-            className="text-center mt-2 text-sm leading-5"
+            className="text-center mt-3 text-base leading-6"
           >
-            You have been redirected to Paystack. Complete the deposit on your{" "}
-            {network || "mobile"} line.
+            Complete payment on your{" "}
+            <Text style={{ fontWeight: "bold", color: colors.primary }}>
+              {network || "mobile"}
+            </Text>{" "}
+            line via Paystack.
           </Text>
+
+          <View
+            className="mt-8 p-4 rounded-xl w-full"
+            style={{
+              backgroundColor: colors.primaryLight,
+              borderColor: colors.primary,
+              borderWidth: 2,
+            }}
+          >
+            <Text
+              style={{ color: colors.primary }}
+              className="text-sm font-bold mb-2"
+            >
+              💡 WHAT TO DO:
+            </Text>
+            <Text
+              style={{ color: colors.primary }}
+              className="text-xs leading-5"
+            >
+              • Complete payment in the browser{"\n"}• Return to this app{"\n"}•
+              Tap "Verify Deposit" below
+            </Text>
+          </View>
 
           <View className="flex-row gap-3 mt-8 w-full">
             <TouchableOpacity
               style={{ backgroundColor: colors.inputBackground }}
-              className="flex-1 px-4 py-3 rounded-lg"
+              className="flex-1 px-4 py-3 rounded-xl"
               onPress={() => setStep(1)}
             >
               <Text
                 style={{ color: colors.text }}
-                className="font-semibold text-center"
+                className="font-bold text-center text-base"
               >
                 Back
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={{ backgroundColor: colors.primary }}
-              className="flex-1 px-4 py-3 rounded-lg"
+              style={{
+                backgroundColor: isVerifying
+                  ? colors.textTertiary
+                  : colors.success,
+              }}
+              className="flex-1 px-4 py-3 rounded-xl flex-row items-center justify-center"
               onPress={() => handleVerifyDeposit(paystackReference)}
               disabled={isVerifying}
             >
               {isVerifying ? (
-                <ActivityIndicator color={colors.background} />
+                <>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text className="text-white font-bold text-base ml-2">
+                    Verifying...
+                  </Text>
+                </>
               ) : (
-                <Text
-                  style={{ color: colors.background }}
-                  className="font-semibold text-center"
-                >
-                  Verify Deposit
-                </Text>
+                <>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={20}
+                    color="#fff"
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text className="text-white font-bold text-base">
+                    Verify Deposit
+                  </Text>
+                </>
               )}
             </TouchableOpacity>
           </View>
@@ -248,8 +292,11 @@ export default function DepositScreen() {
     );
   }
 
+  // ================== MAIN DEPOSIT FORM ==================
   return (
     <SafeScreen>
+      <StickyHeader title="Add Funds" showBack={true} />
+
       <KeyboardAvoidingView
         style={{ backgroundColor: colors.background }}
         className="flex-1"
@@ -258,88 +305,109 @@ export default function DepositScreen() {
         <ScrollView
           style={{ backgroundColor: colors.background }}
           className="flex-1"
-          contentContainerStyle={{ padding: 20 }}
+          scrollEventThrottle={16}
+          contentContainerStyle={{ paddingBottom: 40 }}
         >
-          <View className="items-center mb-8 mt-4">
-            <Text
-              style={{ color: colors.text }}
-              className="text-4xl font-bold mb-1"
-            >
-              Add Funds
-            </Text>
+          <Text
+            style={{ color: colors.textSecondary }}
+            className="text-base leading-6 px-5 mb-6 mt-6"
+          >
+            Deposit money into your wallet using Mobile Money.
+          </Text>
 
-            <Text
-              style={{ color: colors.textSecondary }}
-              className="text-center text-md px-6 leading-5"
-            >
-              Deposit money into your SkyPay wallet using Mobile Money.
-            </Text>
-          </View>
-
+          {/* Error Alert */}
           {error && (
             <View
               style={{
                 backgroundColor: colors.errorLight,
                 borderColor: colors.error,
               }}
-              className="border rounded-lg p-3 mb-4"
+              className="mx-4 border-2 rounded-xl p-4 mb-6 flex-row"
             >
-              <Text style={{ color: colors.error }} className="text-sm">
+              <Ionicons
+                name="alert-circle"
+                size={20}
+                color={colors.error}
+                style={{ marginRight: 10 }}
+              />
+              <Text
+                style={{ color: colors.error }}
+                className="text-sm font-semibold flex-1"
+              >
                 {error}
               </Text>
             </View>
           )}
 
-          <View style={{ backgroundColor: colors.card }} className="p-6 mb-6">
-            {phoneNumber && (
-              <View
-                style={{
-                  backgroundColor: colors.primaryLight,
-                  borderColor: colors.primary,
-                }}
-                className="border rounded-lg p-4 mb-5"
+          {/* Deposit To Phone Card */}
+          {phoneNumber ? (
+            <View
+              style={{
+                backgroundColor: colors.primary,
+                shadowColor: colors.primary,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 6,
+              }}
+              className="mx-4 rounded-2xl p-6 mb-6"
+            >
+              <Text
+                style={{ color: "rgba(255, 255, 255, 0.8)" }}
+                className="text-xs font-bold mb-2 tracking-wide"
               >
-                <Text
-                  style={{ color: colors.primary }}
-                  className="text-xs font-bold mb-1"
-                >
-                  DEPOSIT TO
-                </Text>
-                <Text
-                  style={{ color: colors.text }}
-                  className="text-lg font-bold"
-                >
-                  {phoneNumber}
-                </Text>
-              </View>
-            )}
-
-            {!phoneNumber && (
-              <View
-                style={{
-                  backgroundColor: colors.errorLight,
-                  borderColor: colors.error,
-                }}
-                className="border rounded-lg p-4 mb-5"
+                DEPOSIT TO
+              </Text>
+              <Text style={{ color: "#fff" }} className="text-3xl font-bold">
+                {phoneNumber}
+              </Text>
+              <Text
+                style={{ color: "rgba(255, 255, 255, 0.9)" }}
+                className="text-sm mt-2"
               >
+                Network: <Text className="font-bold">{network}</Text>
+              </Text>
+            </View>
+          ) : (
+            <View
+              style={{
+                backgroundColor: colors.errorLight,
+                borderColor: colors.error,
+              }}
+              className="mx-4 border-2 rounded-xl p-4 mb-6 flex-row"
+            >
+              <Ionicons
+                name="warning"
+                size={20}
+                color={colors.error}
+                style={{ marginRight: 10 }}
+              />
+              <View className="flex-1">
                 <Text
                   style={{ color: colors.error }}
-                  className="text-xs font-semibold mb-1"
+                  className="font-bold text-sm"
                 >
-                  ACCOUNT NOT SETUP
+                  Account Setup Required
                 </Text>
-                <Text style={{ color: colors.error }} className="text-xs">
-                  Please complete your account setup with phone number first.
+                <Text style={{ color: colors.error }} className="text-xs mt-1">
+                  Please complete your account setup with a phone number first.
                 </Text>
               </View>
-            )}
+            </View>
+          )}
 
-            <View className="mb-5">
+          {/* Main Form Card */}
+          <View
+            style={{ backgroundColor: colors.card }}
+            className="mx-4 rounded-2xl p-6 mb-6"
+          >
+            {/* Amount Input */}
+            <View className="mb-6">
               <Text
                 style={{ color: colors.text }}
-                className="text-sm font-bold mb-2"
+                className="text-base font-bold mb-3"
               >
-                Amount to Deposit (GHS) *
+                Deposit Amount
               </Text>
 
               <View
@@ -347,138 +415,193 @@ export default function DepositScreen() {
                   borderColor: colors.inputBorder,
                   backgroundColor: colors.inputBackground,
                 }}
-                className="flex-row items-center border-2 rounded-lg px-4 py-3"
+                className="px-4 py-5 border rounded-2xl flex-row items-center"
               >
                 <Text
                   style={{ color: colors.text }}
-                  className="text-2xl font-bold mr-2"
+                  className="text-3xl font-bold mr-2"
                 >
                   ₵
                 </Text>
+
                 <TextInput
-                  style={{
-                    color: colors.text,
-                    flex: 1,
-                    fontSize: 18,
-                    fontWeight: "bold",
-                  }}
                   value={amount}
                   onChangeText={setAmount}
+                  keyboardType="decimal-pad"
                   placeholder="100.00"
                   placeholderTextColor={colors.textTertiary}
-                  keyboardType="decimal-pad"
-                  editable={!!phoneNumber && !!network}
+                  style={{
+                    flex: 1,
+                    color: colors.text,
+                    fontSize: 26,
+                    fontWeight: "600",
+                  }}
                 />
               </View>
 
               <Text
                 style={{ color: colors.textSecondary }}
-                className="text-xs mt-2"
+                className="text-xs mt-3 font-semibold"
               >
                 Min ₵1.00 • Max ₵10,000,000
               </Text>
             </View>
 
+            {/* How It Works */}
             <View
               style={{
                 backgroundColor: colors.primaryLight,
                 borderColor: colors.primary,
               }}
-              className="border rounded-lg p-4 mt-6"
+              className="border-2 rounded-xl p-4"
             >
-              <Text
-                style={{ color: colors.primary }}
-                className="text-sm font-medium"
-              >
-                How it works:
-              </Text>
+              <View className="flex-row items-center mb-3">
+                <Ionicons
+                  name="help-circle"
+                  size={20}
+                  color={colors.primary}
+                  style={{ marginRight: 8 }}
+                />
+                <Text
+                  style={{ color: colors.primary }}
+                  className="text-base font-bold"
+                >
+                  How It Works
+                </Text>
+              </View>
 
               <Text
                 style={{ color: colors.primary }}
-                className="text-xs mt-2 leading-5 font-semibold"
+                className="text-xs leading-6 font-semibold"
               >
-                1. Enter deposit amount{"\n"}
-                2. Tap "Deposit Now"{"\n"}
-                3. You'll be taken to Paystack{"\n"}
-                4. Approve the deposit on your {network || "mobile"} line{"\n"}
-                5. Return and tap "Verify Deposit"{"\n"}
-                6. Funds appear instantly in your account
+                {`1️⃣ Enter deposit amount\n2️⃣ Tap "Deposit Now"\n3️⃣ Complete payment on Paystack\n4️⃣ Return and verify\n5️⃣ Funds appear instantly`}
               </Text>
             </View>
           </View>
 
-          <TouchableOpacity
-            style={{
-              backgroundColor:
+          {/* Deposit Button */}
+          <View className="mx-4 mb-6">
+            <TouchableOpacity
+              style={{
+                backgroundColor:
+                  isInitializing ||
+                  isVerifying ||
+                  !phoneNumber ||
+                  !network ||
+                  !amount
+                    ? colors.textTertiary
+                    : colors.success,
+              }}
+              className="py-4 rounded-xl flex-row items-center justify-center"
+              onPress={handleInitializeDeposit}
+              disabled={
                 isInitializing ||
                 isVerifying ||
                 !phoneNumber ||
                 !network ||
                 !amount
-                  ? colors.inputBorder
-                  : colors.success,
-            }}
-            className="py-4 rounded-full mb-3"
-            onPress={handleInitializeDeposit}
-            disabled={
-              isInitializing ||
-              isVerifying ||
-              !phoneNumber ||
-              !network ||
-              !amount
-            }
-          >
-            {isInitializing ? (
-              <View className="flex-row justify-center items-center">
-                <ActivityIndicator color={colors.background} />
-                <Text
-                  style={{ color: colors.background }}
-                  className="font-semibold ml-2"
-                >
-                  Processing...
-                </Text>
-              </View>
-            ) : (
-              <Text
-                style={{ color: colors.background }}
-                className="text-base font-bold text-center"
-              >
-                Deposit Now
-              </Text>
-            )}
-          </TouchableOpacity>
+              }
+            >
+              {isInitializing ? (
+                <>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text
+                    style={{ color: "#fff" }}
+                    className="font-bold text-lg ml-2"
+                  >
+                    Processing...
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons
+                    name="arrow-down-circle"
+                    size={24}
+                    color="#fff"
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text style={{ color: "#fff" }} className="text-lg font-bold">
+                    Deposit Now
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
 
           <Text
             style={{ color: colors.textSecondary }}
-            className="text-center text-xs mb-8"
+            className="text-center text-xs mb-8 px-4"
           >
-            Secure deposit powered by Paystack
+            🔒 Secure deposit powered by Paystack
           </Text>
 
+          {/* Security Info */}
           <View
             style={{
               backgroundColor: colors.successLight,
               borderColor: colors.success,
             }}
-            className="border rounded-lg p-4"
+            className="mx-4 border-2 rounded-xl p-4 mb-6"
           >
             <View className="flex-row">
-              <Text className="text-xl mr-3">🔒</Text>
+              <Ionicons
+                name="shield-checkmark"
+                size={24}
+                color={colors.success}
+                style={{ marginRight: 12 }}
+              />
               <View className="flex-1">
                 <Text
                   style={{ color: colors.success }}
-                  className="font-semibold text-sm"
+                  className="font-bold text-base"
                 >
-                  Your deposit is secure
+                  Your Deposit is Secure
                 </Text>
                 <Text
                   style={{ color: colors.success }}
-                  className="text-xs mt-1 font-semibold"
+                  className="text-xs mt-2 leading-5"
                 >
-                  All deposits are encrypted and protected by industry-leading
-                  security standards.
+                  ✓ End-to-end encryption\n✓ Industry-leading security\n✓ PCI
+                  DSS compliant
                 </Text>
               </View>
+            </View>
+          </View>
+
+          {/* Benefits */}
+          <View className="mx-4 mb-12">
+            <Text
+              style={{ color: colors.text }}
+              className="text-base font-bold mb-4"
+            >
+              Why Deposit?
+            </Text>
+
+            <View className="space-y-3">
+              {[
+                { icon: "flash", text: "Instant funding" },
+                { icon: "wallet", text: "Pay bills & shop" },
+                { icon: "gift", text: "Earn rewards" },
+              ].map((item, idx) => (
+                <View key={idx} className="flex-row items-center">
+                  <View
+                    style={{ backgroundColor: colors.primaryLight }}
+                    className="w-10 h-10 rounded-full items-center justify-center mr-3"
+                  >
+                    <Ionicons
+                      name={item.icon}
+                      size={18}
+                      color={colors.primary}
+                    />
+                  </View>
+                  <Text
+                    style={{ color: colors.text }}
+                    className="text-sm font-semibold"
+                  >
+                    {item.text}
+                  </Text>
+                </View>
+              ))}
             </View>
           </View>
         </ScrollView>

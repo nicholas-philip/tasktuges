@@ -66,9 +66,9 @@ export const useAuthStore = create((set, get) => ({
         data = await response.json();
       } else {
         // Not JSON, likely HTML error page
-        const text = await response.text();
+        const _text = await response.text();
         throw new Error(
-          `Server returned ${response.status} - Check backend logs for errors`
+          `Server returned ${response.status} - Check backend logs for errors: ${(_text || "").slice(0, 200)}`
         );
       }
 
@@ -78,6 +78,14 @@ export const useAuthStore = create((set, get) => ({
 
       if (!data?.user || !data?.token) {
         throw new Error("Missing user or token in response");
+      }
+
+      // DEV: Log verification code to console if backend included it (helps local testing)
+      if (data?.verificationCode) {
+        console.log(
+          "🛠️ [DEV] Received verificationCode from server:",
+          data.verificationCode
+        );
       }
 
       await AsyncStorage.multiSet([
@@ -103,6 +111,7 @@ export const useAuthStore = create((set, get) => ({
           ...data.user,
           account: data.account,
         },
+        verificationCode: data?.verificationCode || null,
       };
     } catch (error) {
       const message = error.message || "Network request failed";
@@ -141,9 +150,9 @@ export const useAuthStore = create((set, get) => ({
       if (contentType && contentType.includes("application/json")) {
         data = await response.json();
       } else {
-        const text = await response.text();
+        const _text = await response.text();
         throw new Error(
-          `Server returned ${response.status} - Check backend logs`
+          `Server returned ${response.status} - Check backend logs: ${(_text || "").slice(0, 200)}`
         );
       }
 
@@ -278,11 +287,20 @@ export const useAuthStore = create((set, get) => ({
         throw new Error(data?.message || `Server error: ${response.status}`);
       }
 
+      // DEV: log verification code when provided by backend
+      if (data?.verificationCode) {
+        console.log(
+          "🛠️ [DEV] Resend returned verificationCode:",
+          data.verificationCode
+        );
+      }
+
       set({ isLoading: false, error: null });
 
       return {
         success: true,
         message: data?.message || "Verification code resent successfully",
+        verificationCode: data?.verificationCode || null,
       };
     } catch (error) {
       let userMessage = error.message || "Failed to resend verification code";
@@ -326,6 +344,38 @@ export const useAuthStore = create((set, get) => ({
       return { success: true, user: data.user, account: data.account };
     } catch (error) {
       set({ isLoading: false, error: error.message });
+      return { success: false, message: error.message };
+    }
+  },
+
+  // DEV: Fetch debug verification code from backend (only returns code when backend allows it)
+  getDebugVerificationCode: async (email) => {
+    try {
+      if (!email) throw new Error("Email is required");
+
+      const response = await fetchWithTimeout(
+        `${API_URL}/auth/debug-code?email=${encodeURIComponent(email)}`,
+        { method: "GET" },
+        10000
+      );
+
+      const contentType = response.headers.get("content-type");
+      let data = null;
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.message || `Server error: ${response.status}`);
+      }
+
+      return {
+        success: true,
+        verificationCode: data?.verificationCode || null,
+      };
+    } catch (error) {
       return { success: false, message: error.message };
     }
   },
@@ -437,7 +487,7 @@ export const useAuthStore = create((set, get) => ({
         return true;
       }
       return false;
-    } catch (error) {
+    } catch (_error) {
       return false;
     }
   },

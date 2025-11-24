@@ -1,4 +1,4 @@
-// src/(tabs)/index.jsx - FIXED WITH THEME
+// src/(tabs)/index.jsx - WITH STICKY NAVIGATION BAR
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
@@ -211,11 +211,48 @@ export default function HomeScreen() {
   }
 
   const gradientColors = isDarkMode
-    ? ["#1e293b", "#0f172a", "#0f172a"]
-    : [colors.background, colors.background, colors.background];
+    ? [colors.background, colors.background, colors.background]
+    : [colors.primary, colors.primaryLight];
 
   return (
     <SafeScreen>
+      {/* STICKY NAVIGATION BAR */}
+      <View
+        style={{
+          backgroundColor: colors.background,
+          borderBottomColor: colors.border,
+        }}
+        className="flex-row justify-between items-center px-3 py-3 "
+      >
+        {/* Profile Icon */}
+        <TouchableOpacity
+          onPress={() => router.push("/(tabs)/profile")}
+          className="w-10 h-10 bg-white/20 rounded-full justify-center items-center mt-6"
+        >
+          <Ionicons
+            name="person-outline"
+            size={22}
+            color={isDarkMode ? "white" : colors.text}
+          />
+        </TouchableOpacity>
+
+        {/* Notification Icon */}
+        <TouchableOpacity
+          onPress={() => router.push("/(tabs)/utils/notifications")}
+          className="w-10 h-10 bg-white/20 rounded-full justify-center items-center relative mt-6"
+        >
+          <Ionicons
+            name="notifications-outline"
+            size={22}
+            color={isDarkMode ? "white" : colors.text}
+          />
+          {/* Notification Badge */}
+          <View className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full justify-center items-center">
+            <Text className="text-white text-xs font-bold">3</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         style={{ backgroundColor: colors.background }}
         className="flex-1"
@@ -231,62 +268,30 @@ export default function HomeScreen() {
           colors={gradientColors}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          className="pb-8 rounded-b-3xl shadow-lg"
+          className="pb-8"
         >
-          {/* Header */}
-          <View className="p-3">
-            <View className="flex-row justify-between items-center mt-8">
-              {/* Profile Icon */}
-              <TouchableOpacity
-                onPress={() => router.push("/(tabs)/profile")}
-                className="w-10 h-10 bg-white/20 rounded-full justify-center items-center"
+          {/* Animated Welcome Message */}
+          {showWelcome && (
+            <Animated.View
+              style={{
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              }}
+              className="mx-5 mt-4"
+            >
+              <View
+                style={{ backgroundColor: "rgba(255, 255, 255, 1)" }}
+                className="rounded-2xl p-4 backdrop-blur-lg"
               >
-                <Ionicons
-                  name="person-outline"
-                  size={22}
-                  color={isDarkMode ? "white" : "black"}
-                />
-              </TouchableOpacity>
-
-              {/* Notification Icon */}
-              <TouchableOpacity
-                onPress={() => router.push("/(tabs)/utils/notifications")}
-                className="w-10 h-10 bg-white/20 rounded-full justify-center items-center relative"
-              >
-                <Ionicons
-                  name="notifications-outline"
-                  size={22}
-                  color={isDarkMode ? "white" : "black"}
-                />
-                {/* Notification Badge */}
-                <View className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full justify-center items-center">
-                  <Text className="text-white text-xs font-bold">3</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {/* Animated Welcome Message */}
-            {showWelcome && (
-              <Animated.View
-                style={{
-                  opacity: fadeAnim,
-                  transform: [{ translateY: slideAnim }],
-                }}
-              >
-                <View
-                  style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}
-                  className="rounded-2xl p-4 mt-4 backdrop-blur-lg"
-                >
-                  <Text className="text-2xl font-bold text-black">
-                    {greeting} {greetingEmoji}
-                  </Text>
-                  <Text className="text-sm text-black opacity-80 mt-1">
-                    Manage your finances
-                  </Text>
-                </View>
-              </Animated.View>
-            )}
-          </View>
+                <Text className="text-2xl font-bold text-black">
+                  {greeting} {greetingEmoji}
+                </Text>
+                <Text className="text-sm  opacity-80 mt-1 text-black">
+                  Manage your finances
+                </Text>
+              </View>
+            </Animated.View>
+          )}
 
           {/* Visa Card */}
           <View className="mx-5 my-4">
@@ -541,7 +546,7 @@ export default function HomeScreen() {
             recentTransactions.slice(0, 5).map((transaction) => (
               <TouchableOpacity
                 key={transaction._id}
-                className="flex-row items-center py-3 border-b"
+                className="flex-row items-center py-3 "
                 style={{ borderColor: colors.separator }}
                 onPress={() =>
                   router.push({

@@ -1,26 +1,30 @@
-// ================== src/(tabs)/_layout.jsx - WITH THEME ==================
+// ================== src/(tabs)/_layout.jsx - WITH THEME & BG COLOR ==================
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME
+import { useTheme } from "../context/ThemeContext";
 
 export default function TabLayout() {
-  const { colors, isDarkMode } = useTheme(); // ✅ GET THEME
+  const { colors, isDarkMode } = useTheme();
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary, // ✅ USE THEME PRIMARY COLOR
-        tabBarInactiveTintColor: colors.textTertiary, // ✅ USE THEME TERTIARY TEXT COLOR
+        // ✅ ADD THIS - Set background color for the entire tab container
+        tabBarShowLabel: false,
         tabBarStyle: {
-          backgroundColor: colors.card, // ✅ USE THEME CARD COLOR
-          borderTopColor: colors.border, // ✅ USE THEME BORDER COLOR
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
           borderTopWidth: 1,
+          paddingBottom: 8,
+          paddingTop: 8,
+          height: 75,
         },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textTertiary,
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: "600",
-          height: 30,
         },
       }}
     >
@@ -28,19 +32,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="home-sharp" size={24} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" color={color} size={size} />
           ),
           tabBarLabel: "Home",
-        }}
-      />
-
-      <Tabs.Screen
-        name="withdraw"
-        options={{
-          href: null,
-          title: "withdraw",
         }}
       />
 
@@ -48,9 +43,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="wallet"
         options={{
-          title: "Wallet",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="wallet" size={24} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="wallet" color={color} size={size} />
           ),
           tabBarLabel: "Wallet",
         }}
@@ -60,36 +54,40 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="person-outline" size={22} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" color={color} size={size} />
           ),
           tabBarLabel: "Profile",
         }}
       />
 
-      {/* Hidden Deposit screen (accessed by navigation only) */}
+      {/* Hidden screens (accessed by navigation only) */}
       <Tabs.Screen
         name="deposit"
         options={{
           href: null,
-          title: "Deposit",
+          headerShown: false,
         }}
       />
-
+      <Tabs.Screen
+        name="withdraw"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
       <Tabs.Screen
         name="transfer"
         options={{
           href: null,
-          title: "transfer",
+          headerShown: false,
         }}
       />
-
       <Tabs.Screen
         name="payment"
         options={{
           href: null,
-          title: "payment",
+          headerShown: false,
         }}
       />
     </Tabs>

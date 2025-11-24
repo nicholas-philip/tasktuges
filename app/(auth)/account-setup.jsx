@@ -10,11 +10,11 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import {
   User,
-  Phone,
   MapPin,
   CreditCard,
   Briefcase,
@@ -24,12 +24,11 @@ import {
 import { useSetupAccount } from "../hooks/useAccount";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
-import { Image } from "react-native";
 import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME\
 
 export default function AccountSetup() {
   const router = useRouter();
-  const { colors, isDarkMode } = useTheme(); // ✅ GET THEME
+  const { colors } = useTheme(); // ✅ GET THEME
   const { mutate: setupAccount, isPending: loading } = useSetupAccount();
   const { checkAuth } = useAuthStore();
   const user = useAuthStore((state) => state.user);
@@ -40,13 +39,18 @@ export default function AccountSetup() {
 
   // ✅ Auto-navigate when account setup is complete
   useEffect(() => {
+    // Use the whole `user` object in deps to avoid evaluating nested nullable props
+    // which can cause accidental effect runs or runtime errors when `user` is null.
     console.log("🔍 [AccountSetup] Checking user state:", {
       profileCompleted: user?.profileCompleted,
       accountStatus: user?.account?.status,
       token: !!token,
     });
 
-    if (user?.profileCompleted && user?.account?.status === "active" && token) {
+    const profileCompleted = !!user?.profileCompleted;
+    const accountStatus = user?.account?.status;
+
+    if (profileCompleted && accountStatus === "active" && token) {
       console.log(
         "✅ [AccountSetup] Account is now active - navigating to tabs"
       );
@@ -54,7 +58,7 @@ export default function AccountSetup() {
         router.replace("/(tabs)");
       }, 300);
     }
-  }, [user?.profileCompleted, user?.account?.status, token, router]);
+  }, [user, token, router]);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -71,6 +75,29 @@ export default function AccountSetup() {
     occupation: "",
     monthlyIncome: "",
   });
+
+  // Prefill names from signup username if available
+  useEffect(() => {
+    if (!user || !user.username) return;
+    setFormData((prev) => {
+      // Only prefill if both firstName and lastName are empty
+      if (prev.firstName || prev.lastName) return prev;
+
+      const raw = String(user.username || "").trim();
+      if (!raw) return prev;
+
+      // Try to split username into first/last by common separators
+      const parts = raw.split(/\s+|[-_.]+/).filter(Boolean);
+      const firstName = parts[0] || "";
+      const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
+
+      return {
+        ...prev,
+        firstName,
+        lastName,
+      };
+    });
+  }, [user]);
 
   const handleInputChange = (name, value) => {
     setFormData((prev) => ({

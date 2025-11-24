@@ -1,4 +1,4 @@
-// ================== src/(tabs)/utils/withdraw.jsx - WITH THEME ==================
+// ================== src/(tabs)/utils/withdraw.jsx - WITH STICKY HEADER ==================
 import React, { useState } from "react";
 import {
   View,
@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -15,11 +16,13 @@ import { useWithdraw } from "../hooks/useTransactions";
 import { useGetBalance } from "../hooks/useWallet";
 import { useGetAccountDetails } from "../hooks/useAccount";
 import SafeScreen from "../../components/SafeScreen";
-import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME
+import StickyHeader from "../../components/StickyHeader";
+import { useTheme } from "../context/ThemeContext";
 
 export default function WithdrawScreen() {
   const router = useRouter();
-  const { colors, isDarkMode } = useTheme(); // ✅ GET THEME
+  const { colors, isDarkMode } = useTheme();
+  const screenWidth = Dimensions.get("window").width;
 
   const [amount, setAmount] = useState("");
   const [withdrawMethod, setWithdrawMethod] = useState("bank_transfer");
@@ -35,11 +38,13 @@ export default function WithdrawScreen() {
       id: "bank_transfer",
       label: "Bank Transfer",
       icon: "swap-horizontal",
+      desc: "1-3 business days",
     },
     {
       id: "counter",
       label: "Counter Withdrawal",
       icon: "person",
+      desc: "Instant at branch",
     },
   ];
 
@@ -54,7 +59,7 @@ export default function WithdrawScreen() {
   const formatAmount = (val) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: account?.currency || "USD",
+      currency: account?.currency || "GHS",
     }).format(parseFloat(val) || 0);
   };
 
@@ -77,26 +82,31 @@ export default function WithdrawScreen() {
 
     const withdrawData = {
       amount: parseFloat(amount),
+      method: withdrawMethod,
       description: description || "Withdrawal",
     };
 
     withdraw(withdrawData, {
       onSuccess: () => {
-        Alert.alert("Success", "Withdrawal completed successfully!", [
-          {
-            text: "OK",
-            onPress: () => {
-              setAmount("");
-              setDescription("");
-              setAgreedToTerms(false);
-              router.back();
+        Alert.alert(
+          "✅ Success",
+          `Withdrawal of ${formatAmount(amount)} initiated!`,
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                setAmount("");
+                setDescription("");
+                setAgreedToTerms(false);
+                router.back();
+              },
             },
-          },
-        ]);
+          ]
+        );
       },
       onError: (error) => {
         Alert.alert(
-          "Withdrawal Failed",
+          "❌ Withdrawal Failed",
           error?.message || "An error occurred during withdrawal."
         );
       },
@@ -110,74 +120,67 @@ export default function WithdrawScreen() {
 
   return (
     <SafeScreen>
+      <StickyHeader title="Withdraw Money" showBack={true} />
+
       <ScrollView
         className="flex-1"
         style={{ backgroundColor: colors.background }}
+        scrollEventThrottle={16}
       >
-        {/* Header */}
-        <View className="flex-row items-center justify-between px-5 pt-8 pb-4">
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={28} color={colors.primary} />
-          </TouchableOpacity>
-          <Text className="text-xl font-bold" style={{ color: colors.text }}>
-            Withdraw Money
-          </Text>
-          <View className="w-7" />
-        </View>
-
         {/* Balance Card */}
         <View
-          className="mx-5 mb-5 p-6 rounded-3xl shadow-sm border"
+          className="mx-4 mb-6 p-6 rounded-2xl mt-6"
           style={{
-            backgroundColor: colors.card,
-            borderColor: colors.border,
+            backgroundColor: colors.primary,
+            shadowColor: colors.primary,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 6,
           }}
         >
           <Text
-            className="text-xs font-semibold"
-            style={{ color: colors.textSecondary }}
+            className="text-xs font-bold tracking-wider mb-2"
+            style={{ color: "rgba(255, 255, 255, 0.8)" }}
           >
             AVAILABLE BALANCE
           </Text>
-          <Text
-            className="text-3xl font-bold mt-1"
-            style={{ color: colors.text }}
-          >
+          <Text className="text-4xl font-bold mb-3" style={{ color: "#fff" }}>
             {formatAmount(balance)}
           </Text>
           <Text
-            className="text-xs mt-2"
-            style={{ color: colors.textSecondary }}
+            className="text-sm"
+            style={{ color: "rgba(255, 255, 255, 0.9)" }}
           >
-            Account Number: {account?.accountNumber || "N/A"}
+            Account: {account?.accountNumber || "N/A"}
           </Text>
         </View>
 
-        {/* Amount Input */}
-        <View className="mx-5 mb-6">
+        {/* Amount Input Section */}
+        <View className="mx-4 mb-6">
           <Text
-            className="text-sm font-semibold mb-2"
+            className="text-base font-bold mb-3"
             style={{ color: colors.text }}
           >
-            Enter Amount
+            Enter Withdrawal Amount
           </Text>
 
           <View
-            className="flex-row items-center rounded-2xl px-4 py-4 shadow-sm border"
+            className="flex-row items-center rounded-xl px-4 py-4 border-2"
             style={{
               backgroundColor: colors.inputBackground,
               borderColor: colors.inputBorder,
             }}
           >
             <Text
-              className="text-2xl font-bold mr-3"
+              className="text-3xl font-bold mr-3"
               style={{ color: colors.text }}
             >
               {account?.currency === "GHS" ? "₵" : "$"}
             </Text>
 
             <TextInput
-              className="flex-1 text-3xl font-semibold"
+              className="flex-1 text-4xl font-bold"
               placeholder="0.00"
               placeholderTextColor={colors.textTertiary}
               keyboardType="decimal-pad"
@@ -188,51 +191,51 @@ export default function WithdrawScreen() {
           </View>
 
           {/* Amount Summary */}
-          {amount ? (
+          {amount && (
             <View
-              className="mt-3 p-4 rounded-2xl border"
+              className="mt-4 p-4 rounded-xl border-2"
               style={{
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
+                backgroundColor: colors.successLight,
+                borderColor: colors.success,
               }}
             >
-              <View className="flex-row justify-between">
+              <View className="flex-row justify-between mb-3">
                 <Text
-                  className="text-sm font-medium"
-                  style={{ color: colors.text }}
+                  className="text-sm"
+                  style={{ color: colors.textSecondary }}
                 >
                   Amount:
                 </Text>
                 <Text
-                  className="text-sm font-bold"
+                  className="text-base font-bold"
                   style={{ color: colors.text }}
                 >
                   {formatAmount(amount)}
                 </Text>
               </View>
 
-              <View className="flex-row justify-between mt-1">
+              <View className="flex-row justify-between">
                 <Text
-                  className="text-sm font-medium"
-                  style={{ color: colors.text }}
+                  className="text-sm"
+                  style={{ color: colors.textSecondary }}
                 >
                   Remaining:
                 </Text>
                 <Text
-                  className="text-sm font-bold"
+                  className="text-base font-bold"
                   style={{ color: colors.text }}
                 >
                   {formatAmount(balance - parseFloat(amount))}
                 </Text>
               </View>
             </View>
-          ) : null}
+          )}
         </View>
 
-        {/* Methods */}
-        <View className="mx-5 mb-6">
+        {/* Withdrawal Methods */}
+        <View className="mx-4 mb-6">
           <Text
-            className="text-sm font-semibold mb-2"
+            className="text-base font-bold mb-4"
             style={{ color: colors.text }}
           >
             Select Withdrawal Method
@@ -242,17 +245,21 @@ export default function WithdrawScreen() {
             {withdrawMethods.map((method) => (
               <TouchableOpacity
                 key={method.id}
-                className="flex-row items-center p-4 rounded-2xl border"
+                className="flex-row items-center p-4 rounded-xl border-2"
                 style={{
-                  backgroundColor: colors.card,
+                  backgroundColor:
+                    withdrawMethod === method.id
+                      ? colors.primaryLight
+                      : colors.card,
                   borderColor:
-                    withdrawMethod === method.id ? colors.error : colors.border,
-                  borderWidth: withdrawMethod === method.id ? 2 : 1,
+                    withdrawMethod === method.id
+                      ? colors.primary
+                      : colors.border,
                 }}
                 onPress={() => setWithdrawMethod(method.id)}
               >
                 <View
-                  className="w-12 h-12 rounded-2xl justify-center items-center mr-3"
+                  className="w-16 h-16 rounded-xl justify-center items-center mr-4"
                   style={{
                     backgroundColor:
                       method.id === "bank_transfer"
@@ -260,31 +267,39 @@ export default function WithdrawScreen() {
                         : colors.warning,
                   }}
                 >
-                  <Ionicons name={method.icon} size={24} color="#fff" />
+                  <Ionicons name={method.icon} size={28} color="#fff" />
                 </View>
 
-                <Text
-                  className="flex-1 font-semibold"
-                  style={{ color: colors.text }}
-                >
-                  {method.label}
-                </Text>
+                <View className="flex-1">
+                  <Text
+                    className="text-base font-bold"
+                    style={{ color: colors.text }}
+                  >
+                    {method.label}
+                  </Text>
+                  <Text
+                    className="text-xs mt-1"
+                    style={{ color: colors.textSecondary }}
+                  >
+                    ⏱ {method.desc}
+                  </Text>
+                </View>
 
                 <View
-                  className="w-5 h-5 rounded-full border-2 items-center justify-center"
+                  className="w-6 h-6 rounded-full border-2 items-center justify-center"
                   style={{
                     borderColor:
                       withdrawMethod === method.id
-                        ? colors.error
+                        ? colors.primary
                         : colors.border,
                     backgroundColor:
                       withdrawMethod === method.id
-                        ? colors.error
+                        ? colors.primary
                         : "transparent",
                   }}
                 >
                   {withdrawMethod === method.id && (
-                    <Ionicons name="checkmark" size={14} color="#fff" />
+                    <Ionicons name="checkmark" size={16} color="#fff" />
                   )}
                 </View>
               </TouchableOpacity>
@@ -293,33 +308,35 @@ export default function WithdrawScreen() {
         </View>
 
         {/* Description */}
-        <View className="mx-5 mb-6">
+        <View className="mx-4 mb-6">
           <Text
-            className="text-sm font-semibold mb-2"
+            className="text-base font-bold mb-3"
             style={{ color: colors.text }}
           >
             Description (Optional)
           </Text>
 
           <TextInput
-            className="border rounded-2xl px-4 py-4"
+            className="border-2 rounded-xl px-4 py-3"
             style={{
               backgroundColor: colors.inputBackground,
               borderColor: colors.inputBorder,
               color: colors.text,
+              minHeight: 100,
             }}
-            placeholder="Add a note..."
+            placeholder="Add a note about this withdrawal..."
             placeholderTextColor={colors.textTertiary}
             value={description}
             onChangeText={setDescription}
             multiline
+            numberOfLines={4}
           />
         </View>
 
-        {/* Terms */}
-        <View className="mx-5 mb-6 flex-row items-start">
+        {/* Terms Agreement */}
+        <View className="mx-4 mb-6 flex-row items-start">
           <TouchableOpacity
-            className="w-6 h-6 rounded-md border-2 mr-3 justify-center items-center"
+            className="w-6 h-6 rounded-md border-2 mr-3 mt-0.5 justify-center items-center"
             style={{
               borderColor: agreedToTerms ? colors.success : colors.border,
               backgroundColor: agreedToTerms ? colors.success : "transparent",
@@ -331,12 +348,9 @@ export default function WithdrawScreen() {
             )}
           </TouchableOpacity>
 
-          <Text
-            className="flex-1 text-sm leading-5"
-            style={{ color: colors.text }}
-          >
+          <Text className="flex-1 text-sm mt-1" style={{ color: colors.text }}>
             I agree to the{" "}
-            <Text style={{ color: colors.success, fontWeight: "600" }}>
+            <Text style={{ color: colors.success, fontWeight: "700" }}>
               Terms & Conditions
             </Text>{" "}
             and confirm the withdrawal details.
@@ -344,13 +358,13 @@ export default function WithdrawScreen() {
         </View>
 
         {/* Withdraw Button */}
-        <View className="mx-5 mb-10">
+        <View className="mx-4 mb-6">
           <TouchableOpacity
-            className="p-5 rounded-2xl flex-row justify-center items-center shadow-md"
+            className="p-4 rounded-xl flex-row justify-center items-center"
             style={{
               backgroundColor:
                 isValidAmount && agreedToTerms && !isPending
-                  ? colors.error
+                  ? colors.success
                   : colors.textTertiary,
             }}
             onPress={handleWithdraw}
@@ -361,12 +375,9 @@ export default function WithdrawScreen() {
                 <ActivityIndicator
                   color="#fff"
                   size="small"
-                  style={{ marginRight: 8 }}
+                  style={{ marginRight: 10 }}
                 />
-                <Text
-                  className="text-white font-bold text-lg"
-                  style={{ marginLeft: 8 }}
-                >
+                <Text className="text-white font-bold text-lg">
                   Processing...
                 </Text>
               </>
@@ -374,48 +385,77 @@ export default function WithdrawScreen() {
               <>
                 <Ionicons
                   name="arrow-up-circle"
-                  size={22}
+                  size={24}
                   color="#fff"
                   style={{ marginRight: 8 }}
                 />
                 <Text className="text-white font-bold text-lg">
-                  Withdraw {amount ? formatAmount(amount) : ""}
+                  Withdraw {amount ? formatAmount(amount) : "Now"}
                 </Text>
               </>
             )}
           </TouchableOpacity>
         </View>
 
-        {/* Info Box */}
+        {/* Processing Time Info */}
         <View
-          className="mx-5 mb-10 p-4 rounded-2xl shadow-sm border"
+          className="mx-4 mb-12 p-4 rounded-2xl border-2 flex-row"
           style={{
             backgroundColor: colors.warningLight,
             borderColor: colors.warning,
           }}
         >
-          <View className="flex-row">
-            <Ionicons
-              name="information-circle"
-              size={22}
-              color={colors.warning}
-              style={{ marginRight: 8 }}
-            />
-            <View className="flex-1">
-              <Text
-                className="font-semibold text-sm"
-                style={{ color: colors.text }}
-              >
-                Processing Time
-              </Text>
-              <Text
-                className="text-xs mt-1 leading-4"
-                style={{ color: colors.textSecondary }}
-              >
-                Bank transfers take 1–3 business days. Counter withdrawals are
-                processed immediately at the branch.
-              </Text>
-            </View>
+          <Ionicons
+            name="information-circle"
+            size={24}
+            color={colors.warning}
+            style={{ marginRight: 12, marginTop: 2 }}
+          />
+          <View className="flex-1">
+            <Text
+              className="font-bold text-base"
+              style={{ color: colors.text }}
+            >
+              Processing Time
+            </Text>
+            <Text
+              className="text-xs mt-2"
+              style={{ color: colors.textSecondary }}
+            >
+              {withdrawMethod === "bank_transfer"
+                ? "🏦 Bank transfers take 1–3 business days to complete."
+                : "⚡ Counter withdrawals are processed instantly at the branch."}
+            </Text>
+          </View>
+        </View>
+
+        {/* Security Info */}
+        <View
+          className="mx-4 mb-12 p-4 rounded-2xl border-2 flex-row"
+          style={{
+            backgroundColor: colors.primaryLight,
+            borderColor: colors.primary,
+          }}
+        >
+          <Ionicons
+            name="shield-checkmark"
+            size={24}
+            color={colors.primary}
+            style={{ marginRight: 12, marginTop: 2 }}
+          />
+          <View className="flex-1">
+            <Text
+              className="font-bold text-base"
+              style={{ color: colors.text }}
+            >
+              Secure Withdrawal
+            </Text>
+            <Text
+              className="text-xs mt-2"
+              style={{ color: colors.textSecondary }}
+            >
+              ✓ Your withdrawal is protected with end-to-end encryption
+            </Text>
           </View>
         </View>
       </ScrollView>

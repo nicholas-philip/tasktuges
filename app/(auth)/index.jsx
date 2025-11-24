@@ -1,4 +1,3 @@
-// ================== app/(auth)/index.jsx - IMPROVED UI ==================
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -8,12 +7,12 @@ import {
   Image,
   KeyboardAvoidingView,
   ActivityIndicator,
-  Keyboard,
   Platform,
   Alert,
+  ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { BlurView } from "expo-blur";
+import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
 import {
@@ -26,21 +25,20 @@ import SafeScreen from "../../components/SafeScreen";
 import { useTheme } from "../context/ThemeContext";
 
 export default function Login() {
+  const { colors } = useTheme();
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const router = useRouter();
-  const { colors, isDarkMode } = useTheme();
   const { isLoading, register, login, error, clearError } = useAuthStore();
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
 
-  // ----------------- Auto navigation -----------------
   useEffect(() => {
     if (user && token) {
       if (!user.emailVerified) {
@@ -53,23 +51,17 @@ export default function Login() {
           !user.profileCompleted ||
           user.account?.status === "pending" ||
           !user.account;
-
-        if (needsSetup) {
-          router.replace("/(auth)/account-setup");
-        } else {
-          router.replace("/(tabs)");
-        }
+        if (needsSetup) router.replace("/(auth)/account-setup");
+        else router.replace("/(tabs)");
       }
     }
   }, [user, token, router]);
 
-  // ----------------- Validations -----------------
   const validateInputs = () => {
     clearError();
-
     if (isLogin) {
       if (!email.trim()) return Alert.alert("Error", "Email is required");
-      if (!password) return Alert.alert("Error", "Password is required");
+      if (!password.trim()) return Alert.alert("Error", "Password is required");
       if (password.length < 6)
         return Alert.alert("Error", "Password must be at least 6 characters");
     } else {
@@ -82,19 +74,32 @@ export default function Login() {
       if (password !== confirmPassword)
         return Alert.alert("Error", "Passwords do not match");
     }
-
     return true;
   };
 
-  // ----------------- Handlers -----------------
   const handleSignup = async () => {
     if (!validateInputs()) return;
     const result = await register(username, email, password);
 
     if (result.success) {
+      if (result.verificationCode) {
+        Alert.alert(
+          "Verification Code",
+          `Your verification code is: ${result.verificationCode}`,
+          [
+            {
+              text: "Copy",
+              onPress: async () =>
+                await Clipboard.setStringAsync(result.verificationCode),
+            },
+            { text: "OK" },
+          ]
+        );
+      }
+
       router.push({
         pathname: "/(auth)/verify-email",
-        params: { email },
+        params: { email, code: result.verificationCode },
       });
     } else {
       Alert.alert("Registration Failed", result.message);
@@ -110,313 +115,284 @@ export default function Login() {
     }
   };
 
-  // ----------------- Keyboard listener -----------------
-  useEffect(() => {
-    const show = Keyboard.addListener("keyboardDidShow", () =>
-      setKeyboardVisible(true)
-    );
-    const hide = Keyboard.addListener("keyboardDidHide", () =>
-      setKeyboardVisible(false)
-    );
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
-
   return (
     <SafeScreen>
-      <KeyboardAvoidingView
-        className="flex-1 items-center justify-center"
-        style={{ backgroundColor: colors.background }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <View className="flex-1 justify-center items-center px-5 w-full">
-          {/* ----------------- Logo ----------------- */}
-          {!keyboardVisible && (
-            <View className="absolute top-10 left-0 right-0 items-center">
-              <View className="flex-row items-center justify-center mb-8">
-                <Image
-                  source={require("../../assets/images1/logo.png")}
-                  className="w-16 h-16 mr-2"
-                  resizeMode="contain"
-                />
-                <Text
-                  className="text-4xl font-extrabold tracking-wide"
-                  style={{ color: colors.text }}
-                >
-                  SkyPay
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* ----------------- CARD ----------------- */}
-          <BlurView
-            intensity={80}
-            tint={isDarkMode ? "dark" : "light"}
-            className="p-6 w-full rounded-3xl overflow-hidden mb-8"
-            style={{
-              marginTop: keyboardVisible ? 60 : 160,
-              backgroundColor: isDarkMode
-                ? "rgba(255, 255, 255, 0.05)"
-                : "rgba(0, 0, 0, 0.3)",
-              borderWidth: 1.5,
-              borderColor: isDarkMode
-                ? "rgba(255, 255, 255, 0.1)"
-                : "rgba(255, 255, 255, 0.5)",
-            }}
+      <KeyboardAvoidingView className="flex-1 bg-white">
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* ================= HEADER ================= */}
+          <View
+            className="px-7 pt-11 pb-9 w-full h-[250px]"
+            style={{ backgroundColor: colors.primary }}
           >
-            {/* ----------------- Title ----------------- */}
-            <Text
-              className="text-3xl font-extrabold text-center mb-1"
-              style={{ color: colors.text }}
-            >
+            <View className="flex-row items-center">
+              <Image
+                source={require("../../assets/images1/logo.png")}
+                className="w-14 h-14 mr-3"
+                resizeMode="contain"
+              />
+              <Text className="text-3xl font-black text-white">SkyPay</Text>
+            </View>
+
+            <Text className="text-3xl font-extrabold mt-6 text-white">
               {isLogin ? "Welcome Back" : "Create Account"}
             </Text>
 
             <Text
-              className="text-center mb-4"
-              style={{ color: colors.primaryLight }}
+              style={{ color: "rgba(255,255,255,0.9)" }}
+              className="text-base mt-2"
             >
               {isLogin
-                ? "Log in to continue with SkyPay"
-                : "Get started with your SkyPay wallet"}
+                ? "Log in to continue your journey with SkyPay."
+                : "Register your account today using a valid email and password."}
             </Text>
+          </View>
 
-            {/* ----------------- Error ----------------- */}
+          {/* ================= FORM CARD ================= */}
+          <View
+            className="flex-1 w-full px-6 pt-8 pb-14 rounded-tl-[20px] rounded-tr-[20px] -mt-3 overflow-hidden shadow-lg"
+            style={{
+              backgroundColor:
+                colors.authCard || colors.card || colors.background,
+              shadowColor: "#000",
+              shadowOpacity: 0.12,
+              shadowRadius: 16,
+              elevation: 8,
+            }}
+          >
+            {/* Error */}
             {error && (
-              <View
-                className="border rounded-lg px-3 py-2 mb-8"
-                style={{
-                  backgroundColor: "rgba(239, 68, 68, 0.15)",
-                  borderColor: colors.error,
-                }}
-              >
-                <Text className="text-sm" style={{ color: colors.error }}>
-                  {error}
-                </Text>
+              <View className="p-3 border border-red-500 bg-red-50 rounded-lg mb-4">
+                <Text className="text-red-600 text-sm">{error}</Text>
               </View>
             )}
 
-            {/* ----------------- Inputs ----------------- */}
+            <Text
+              style={{ color: colors.text }}
+              className="text-2xl font-extrabold mt-8"
+            >
+              {isLogin ? "Log In" : "Sign Up"}
+            </Text>
+
+            {/* ================= INPUT FIELDS ================= */}
+
+            {/* Username (signup only) */}
             {!isLogin && (
-              <View className="mb-3">
-                <Text
-                  className="font-semibold mb-2"
-                  style={{ color: colors.text }}
-                >
-                  Username
-                </Text>
-                <TextInput
-                  placeholder="Choose a username"
-                  placeholderTextColor="#ffffff80"
-                  value={username}
-                  onChangeText={setUsername}
-                  className="rounded-2xl px-4 py-3"
-                  style={{
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: colors.text,
-                  }}
-                />
-              </View>
+              <TextInput
+                placeholder="Username"
+                value={username}
+                onChangeText={setUsername}
+                placeholderTextColor={colors.textTertiary || "#999"}
+                style={{
+                  backgroundColor: colors.inputBackground || "#F5F5F5",
+                  color: colors.text,
+                  borderColor: colors.inputBorder || "#E0E0E0",
+                }}
+                className="px-4 py-4 rounded-full text-base border mt-5"
+              />
             )}
 
             {/* Email */}
-            <View className="mb-3">
-              <Text
-                className="font-semibold mb-2"
-                style={{ color: colors.text }}
-              >
-                Email
-              </Text>
-              <TextInput
-                placeholder="Enter your email"
-                placeholderTextColor="#ffffff80"
-                value={email}
-                onChangeText={setEmail}
-                className="rounded-2xl px-4 py-3"
-                style={{
-                  backgroundColor: "rgba(255,255,255,0.1)",
-                  color: colors.text,
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
+            <TextInput
+              placeholder="Enter your email"
+              value={email}
+              onChangeText={setEmail}
+              placeholderTextColor={colors.textTertiary || "#999"}
+              style={{
+                backgroundColor: colors.inputBackground || "#F5F5F5",
+                color: colors.text,
+                borderColor: colors.inputBorder || "#E0E0E0",
+              }}
+              className="px-4 py-4 rounded-full text-base border mt-5"
+            />
 
             {/* Password */}
-            <View className="mb-2">
-              <Text
-                className="font-semibold mb-2"
-                style={{ color: colors.text }}
-              >
-                Password
-              </Text>
-
-              <View className="relative">
-                <TextInput
-                  placeholder="Enter your password"
-                  placeholderTextColor="#ffffff80"
-                  secureTextEntry={!showPassword}
-                  value={password}
-                  onChangeText={setPassword}
-                  className="rounded-2xl px-4 py-3 pr-12"
-                  style={{
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                    color: colors.text,
-                  }}
+            <View
+              style={{
+                backgroundColor: colors.inputBackground || "#F5F5F5",
+                borderColor: colors.inputBorder || "#E0E0E0",
+              }}
+              className="rounded-full px-4 py-0 border flex-row items-center mt-5"
+            >
+              <TextInput
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={setPassword}
+                placeholderTextColor={colors.textTertiary || "#999"}
+                secureTextEntry={!showPassword}
+                style={{
+                  color: colors.text,
+                }}
+                className="flex-1 text-base py-4"
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons
+                  name={showPassword ? "eye-outline" : "eye-off-outline"}
+                  size={20}
+                  color={colors.textTertiary || "#777"}
                 />
-
-                <TouchableOpacity
-                  className="absolute right-4 top-3"
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <Ionicons
-                    name={showPassword ? "eye-outline" : "eye-off-outline"}
-                    size={22}
-                    color="#fff"
-                    className="mt-3"
-                  />
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             </View>
 
             {/* Confirm Password */}
             {!isLogin && (
-              <View className="mb-2">
-                <Text
-                  className="font-semibold mb-2"
-                  style={{ color: colors.text }}
-                >
-                  Confirm Password
-                </Text>
-                <View className="relative">
-                  <TextInput
-                    placeholder="Re-enter your password"
-                    placeholderTextColor="#ffffff80"
-                    secureTextEntry={!showPassword}
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    className="rounded-2xl px-4 py-3 pr-12"
-                    style={{
-                      backgroundColor: "rgba(255,255,255,0.1)",
-                      color: colors.text,
-                    }}
-                  />
-                  <TouchableOpacity
-                    className="absolute right-4 top-3"
-                    onPress={() => setShowPassword(!showPassword)}
-                  >
-                    <Ionicons
-                      name={showPassword ? "eye-outline" : "eye-off-outline"}
-                      size={22}
-                      color="#fff"
-                      className="mt-3"
-                    />
-                  </TouchableOpacity>
-                </View>
+              <View
+                style={{
+                  backgroundColor: colors.inputBackground || "#F5F5F5",
+                  borderColor: colors.inputBorder || "#E0E0E0",
+                }}
+                className="rounded-full px-4 py-0 border flex-row items-center mt-5"
+              >
+                <TextInput
+                  placeholder="Confirm your password"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholderTextColor={colors.textTertiary || "#999"}
+                  secureTextEntry={!showPassword}
+                  style={{
+                    color: colors.text,
+                  }}
+                  className="flex-1 py-4 text-base"
+                />
               </View>
             )}
 
-            {/* Forgot password */}
+            {/* Remember Me */}
             {isLogin && (
-              <TouchableOpacity
-                className="mt-1 mb-3"
-                onPress={() =>
-                  Alert.alert("Coming Soon", "Password reset coming soon!")
-                }
-              >
-                <Text
-                  className="text-right font-semibold"
-                  style={{ color: colors.primaryLight }}
+              <View className="flex-row justify-between items-center mt-6">
+                <TouchableOpacity
+                  onPress={() => setRememberMe(!rememberMe)}
+                  className="flex-row items-center"
                 >
-                  Forgot Password?
-                </Text>
-              </TouchableOpacity>
+                  <View
+                    style={{
+                      backgroundColor: rememberMe
+                        ? colors.primary
+                        : colors.inputBackground || "#F5F5F5",
+                      borderWidth: rememberMe ? 0 : 1,
+                      borderColor: colors.inputBorder || "#E0E0E0",
+                    }}
+                    className="w-[18px] h-[18px] rounded justify-center items-center"
+                  >
+                    {rememberMe && (
+                      <Ionicons name="checkmark" size={12} color="#FFF" />
+                    )}
+                  </View>
+                  <Text style={{ color: colors.text }} className="text-sm ml-2">
+                    Remember me
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() =>
+                    Alert.alert("Coming Soon", "Password reset coming soon!")
+                  }
+                >
+                  <Text
+                    style={{
+                      color: colors.primary,
+                    }}
+                    className="font-semibold text-sm"
+                  >
+                    Forgot password?
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
 
-            {/* ----------------- Button ----------------- */}
+            {/* ================= SUBMIT BUTTON ================= */}
             <TouchableOpacity
               onPress={isLogin ? handleLogin : handleSignup}
+              activeOpacity={0.85}
               disabled={isLoading}
-              className="py-4 rounded-full mt-1"
               style={{
-                backgroundColor: colors.card,
-                opacity: isLoading ? 0.7 : 1,
+                backgroundColor: isLoading
+                  ? colors.border || "#DDD"
+                  : colors.primary || "#0052CC",
               }}
+              className="py-5 rounded-full items-center mt-6"
             >
               {isLoading ? (
-                <View className="flex-row justify-center items-center">
-                  <ActivityIndicator color={colors.text} />
-                  <Text
-                    className="ml-2 font-bold"
-                    style={{ color: colors.text }}
-                  >
-                    {isLogin ? "Logging in..." : "Creating..."}
-                  </Text>
-                </View>
+                <ActivityIndicator color="#FFF" />
               ) : (
-                <Text
-                  className="text-center text-lg font-bold"
-                  style={{ color: colors.text }}
-                >
-                  {isLogin ? "Login" : "Sign Up"}
+                <Text className="text-white text-base font-bold">
+                  {isLogin ? "Log In" : "Sign Up"}
                 </Text>
               )}
             </TouchableOpacity>
 
-            {/* ----------------- Divider ----------------- */}
-            <View className="flex-row items-center justify-center my-4">
+            {/* Divider */}
+            <View className="flex-row items-center my-6">
               <View
-                className="flex-1 h-[1px]"
-                style={{ backgroundColor: colors.textSecondary }}
+                style={{
+                  backgroundColor: colors.separator || "#E0E0E0",
+                }}
+                className="flex-1 h-px"
               />
               <Text
-                className="mx-4 font-semibold"
-                style={{ color: colors.textSecondary }}
+                style={{
+                  color: colors.textTertiary || "#888",
+                }}
+                className="mx-2.5"
               >
                 or
               </Text>
               <View
-                className="flex-1 h-[1px]"
-                style={{ backgroundColor: colors.textSecondary }}
+                style={{
+                  backgroundColor: colors.separator || "#E0E0E0",
+                }}
+                className="flex-1 h-px"
               />
             </View>
 
-            {/* ----------------- Social Auth ----------------- */}
-            <View className="flex-row justify-center gap-8 mb-2">
-              {/* Google */}
+            {/* Social Login */}
+            <View className="flex-row justify-center mb-2">
               <TouchableOpacity
-                className="p-4 rounded-full"
-                style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
-                onPress={() => Alert.alert("Coming Soon", "Google login")}
+                style={{
+                  backgroundColor: colors.surface || "#F9F9F9",
+                }}
+                className="p-4 rounded-full mx-1.5"
+                onPress={() =>
+                  Alert.alert("Coming Soon", "Google login coming soon!")
+                }
               >
-                <FontAwesomeIcon icon={faGoogle} size={26} color="#DB4437" />
+                <FontAwesomeIcon icon={faGoogle} size={20} color="#DB4437" />
               </TouchableOpacity>
 
-              {/* Facebook */}
               <TouchableOpacity
-                className="p-4 rounded-full"
-                style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
-                onPress={() => Alert.alert("Coming Soon", "Facebook login")}
+                style={{
+                  backgroundColor: colors.surface || "#F9F9F9",
+                }}
+                className="p-4 rounded-full mx-1.5"
+                onPress={() =>
+                  Alert.alert("Coming Soon", "Facebook login coming soon!")
+                }
               >
-                <FontAwesomeIcon icon={faFacebook} size={26} color="#1877F2" />
+                <FontAwesomeIcon icon={faFacebook} size={20} color="#1877F2" />
               </TouchableOpacity>
 
-              {/* Apple */}
               <TouchableOpacity
-                className="p-4 rounded-full"
-                style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
-                onPress={() => Alert.alert("Coming Soon", "Apple login")}
+                style={{
+                  backgroundColor: colors.surface || "#F9F9F9",
+                }}
+                className="p-4 rounded-full mx-1.5"
+                onPress={() =>
+                  Alert.alert("Coming Soon", "Apple login coming soon!")
+                }
               >
-                <FontAwesomeIcon icon={faApple} size={26} color="#fff" />
+                <FontAwesomeIcon
+                  icon={faApple}
+                  size={22}
+                  color={colors.text || "#000"}
+                />
               </TouchableOpacity>
             </View>
 
-            {/* ----------------- Switch Mode ----------------- */}
+            {/* Toggle Mode */}
             <TouchableOpacity
-              className="mt-4 mb-1"
               onPress={() => {
                 setIsLogin(!isLogin);
                 clearError();
@@ -425,21 +401,24 @@ export default function Login() {
                 setConfirmPassword("");
                 setUsername("");
               }}
+              className="mt-4"
             >
               <Text
-                className="text-center text-base font-semibold"
-                style={{ color: colors.text }}
+                style={{
+                  color: colors.textTertiary || "#666",
+                }}
+                className="text-center text-sm"
               >
                 {isLogin
                   ? "Don't have an account? "
                   : "Already have an account? "}
-                <Text style={{ color: colors.primary, fontWeight: "700" }}>
+                <Text style={{ color: colors.primary }} className="font-bold">
                   {isLogin ? "Sign Up" : "Log In"}
                 </Text>
               </Text>
             </TouchableOpacity>
-          </BlurView>
-        </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeScreen>
   );

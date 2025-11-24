@@ -13,6 +13,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
@@ -20,8 +21,8 @@ import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME
 
 export default function VerifyEmail() {
   const router = useRouter();
-  const { colors, isDarkMode } = useTheme(); // ✅ GET THEME
-  const { email: paramEmail } = useLocalSearchParams();
+  const { colors } = useTheme(); // ✅ GET THEME
+  const { email: paramEmail, code: paramCode } = useLocalSearchParams();
 
   const [code, setCode] = useState("");
   const [isResending, setIsResending] = useState(false);
@@ -32,6 +33,9 @@ export default function VerifyEmail() {
   const { isLoading, verifyEmail, resendVerificationCode, error, clearError } =
     useAuthStore();
   const user = useAuthStore((state) => state.user);
+  const getDebugVerificationCode = useAuthStore(
+    (state) => state.getDebugVerificationCode
+  );
 
   // Timer countdown for resend button
   useEffect(() => {
@@ -61,7 +65,66 @@ export default function VerifyEmail() {
         router.replace("/(tabs)");
       }
     }
-  }, [user?.emailVerified, user.profileCompleted, router, user.account]);
+  }, [user, router]);
+
+  // If a verification code was passed via params (dev mode), show it so the user can copy it
+  useEffect(() => {
+    if (paramCode) {
+      Alert.alert(
+        "Verification Code",
+        `Your verification code is: ${paramCode}`,
+        [
+          {
+            text: "Copy",
+            onPress: async () => await Clipboard.setStringAsync(paramCode),
+          },
+          { text: "OK" },
+        ]
+      );
+    }
+  }, [paramCode]);
+
+  // DEV: attempt to fetch the verification code from server debug endpoint and log it to Metro console
+  useEffect(() => {
+    let mounted = true;
+    const tryFetchDebugCode = async () => {
+      if (!email) return;
+      try {
+        const res = await getDebugVerificationCode(email);
+        if (!mounted) return;
+        if (res?.success && res.verificationCode) {
+          console.log(
+            "🛠️ [DEV] Debug verification code:",
+            res.verificationCode
+          );
+          Alert.alert(
+            "Verification Code (dev)",
+            `Your verification code is: ${res.verificationCode}`,
+            [
+              {
+                text: "Copy",
+                onPress: async () =>
+                  await Clipboard.setStringAsync(res.verificationCode),
+              },
+              { text: "OK" },
+            ]
+          );
+        } else if (!res.success) {
+          console.log(
+            "🛠️ [DEV] Debug endpoint response:",
+            res.message || "no code"
+          );
+        }
+      } catch (e) {
+        console.log("🛠️ [DEV] Failed to fetch debug code:", e?.message || e);
+      }
+    };
+
+    tryFetchDebugCode();
+    return () => {
+      mounted = false;
+    };
+  }, [email, getDebugVerificationCode]);
 
   const handleVerify = async () => {
     clearError();
@@ -71,8 +134,11 @@ export default function VerifyEmail() {
       return;
     }
 
-    if (!code.trim() || code.length < 4) {
-      Alert.alert("Error", "Please enter a valid verification code");
+    if (!code.trim() || code.length < 6) {
+      Alert.alert(
+        "Error",
+        "Please enter the 6-digit verification code sent to your email"
+      );
       return;
     }
 
@@ -108,7 +174,22 @@ export default function VerifyEmail() {
     console.log("📊 Resend result:", result);
 
     if (result.success) {
-      Alert.alert("Success", "Verification code resent to your email! 📧");
+      if (result.verificationCode) {
+        Alert.alert(
+          "Verification Code",
+          `Your verification code is: ${result.verificationCode}`,
+          [
+            {
+              text: "Copy",
+              onPress: async () =>
+                await Clipboard.setStringAsync(result.verificationCode),
+            },
+            { text: "OK" },
+          ]
+        );
+      } else {
+        Alert.alert("Success", "Verification code resent to your email! 📧");
+      }
     } else {
       Alert.alert("Error", result.message || "Failed to resend code");
     }
@@ -156,7 +237,7 @@ export default function VerifyEmail() {
               className="text-center text-base leading-6"
               style={{ color: colors.textSecondary }}
             >
-              We have sent a 4-digit verification code to your email
+              We have sent a 6-digit verification code to your email
             </Text>
           </View>
 
@@ -241,11 +322,11 @@ export default function VerifyEmail() {
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={handleVerify}
-              disabled={isLoading || !code || code.length < 4}
+              disabled={isLoading || !code || code.length < 6}
               className="w-full py-4 rounded-lg items-center mb-3"
               style={{
                 backgroundColor:
-                  isLoading || !code || code.length < 4
+                  isLoading || !code || code.length < 6
                     ? colors.textTertiary
                     : colors.primary,
               }}
@@ -281,6 +362,42 @@ export default function VerifyEmail() {
                   : canResend
                     ? "Resend Code"
                     : `Resend Code in ${timer}s`}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Dev: Show code button */}
+            <TouchableOpacity
+              onPress={async () => {
+                if (!email) {
+                  Alert.alert("Error", "No email available to fetch code");
+                  return;
+                }
+                const res = await getDebugVerificationCode(email);
+                console.log("🛠️ [DEV] Manual debug fetch result:", res);
+                if (res?.success && res.verificationCode) {
+                  Alert.alert(
+                    "Verification Code (dev)",
+                    `Your verification code is: ${res.verificationCode}`,
+                    [
+                      {
+                        text: "Copy",
+                        onPress: async () =>
+                          await Clipboard.setStringAsync(res.verificationCode),
+                      },
+                      { text: "OK" },
+                    ]
+                  );
+                } else {
+                  Alert.alert("Debug", res.message || "No code available");
+                }
+              }}
+              className="w-full py-3 mb-4"
+            >
+              <Text
+                className="text-center font-semibold"
+                style={{ color: colors.primary }}
+              >
+                Show code (dev)
               </Text>
             </TouchableOpacity>
 

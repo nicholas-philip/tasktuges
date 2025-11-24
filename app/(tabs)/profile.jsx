@@ -311,9 +311,9 @@ const ProfileScreen = ({ navigation }) => {
             style={{
               backgroundColor: "rgba(255, 255, 255, 0.2)",
               alignSelf: "flex-start",
-              marginBottom: 16,
+              margintop: 24,
             }}
-            className="flex-row items-center gap-2 px-4 py-2 rounded-full"
+            className="flex-row items-center gap-2 px-4 py-2 rounded-full mt-3"
           >
             <Ionicons
               name={
@@ -423,7 +423,7 @@ const ProfileScreen = ({ navigation }) => {
                 backgroundColor: colors.card,
                 borderColor: colors.border,
                 position: "absolute",
-                top: 80,
+                top: 110,
                 left: 20,
               }}
               className="w-64 rounded-2xl border overflow-hidden shadow-lg"
@@ -537,7 +537,7 @@ const ProfileScreen = ({ navigation }) => {
             >
               <View
                 style={{ borderColor: colors.separator }}
-                className="flex-row justify-between items-center pb-3 border-b"
+                className="flex-row justify-between items-center pb-3 "
               >
                 <Text
                   style={{ color: colors.textSecondary }}
@@ -551,7 +551,7 @@ const ProfileScreen = ({ navigation }) => {
               </View>
               <View
                 style={{ borderColor: colors.separator }}
-                className="flex-row justify-between items-center pb-3 border-b"
+                className="flex-row justify-between items-center pb-3 "
               >
                 <Text
                   style={{ color: colors.textSecondary }}
@@ -676,7 +676,7 @@ const ProfileScreen = ({ navigation }) => {
             >
               <View
                 style={{ borderColor: colors.separator }}
-                className="flex-row justify-between items-center pb-3 border-b"
+                className="flex-row justify-between items-center pb-3 "
               >
                 <Text
                   style={{ color: colors.textSecondary }}
@@ -690,7 +690,7 @@ const ProfileScreen = ({ navigation }) => {
               </View>
               <View
                 style={{ borderColor: colors.separator }}
-                className="flex-row justify-between items-center pb-3 border-b"
+                className="flex-row justify-between items-center pb-3 "
               >
                 <Text
                   style={{ color: colors.textSecondary }}

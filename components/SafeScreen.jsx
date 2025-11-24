@@ -1,18 +1,7 @@
 import React from "react";
-import { View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+// No-op SafeScreen: return children directly so pages behave as if SafeScreen
+// was removed. This avoids editing every screen to remove the wrapper.
 export default function SafeScreen({ children }) {
-  const insets = useSafeAreaInsets();
-
-  return (
-    <View
-      className="flex-1 bg-black"
-      style={{
-        paddingTop: insets.top,
-      }}
-    >
-      {children}
-    </View>
-  );
+  return <>{children}</>;
 }
