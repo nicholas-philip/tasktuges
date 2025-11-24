@@ -210,10 +210,6 @@ export default function HomeScreen() {
     );
   }
 
-  const gradientColors = isDarkMode
-    ? [colors.background, colors.background, colors.background]
-    : [colors.primary, colors.primaryLight];
-
   return (
     <SafeScreen>
       {/* STICKY NAVIGATION BAR */}
@@ -264,12 +260,7 @@ export default function HomeScreen() {
           />
         }
       >
-        <LinearGradient
-          colors={gradientColors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          className="pb-8"
-        >
+        <View className="pb-8">
           {/* Animated Welcome Message */}
           {showWelcome && (
             <Animated.View
@@ -296,7 +287,11 @@ export default function HomeScreen() {
           {/* Visa Card */}
           <View className="mx-5 my-4">
             <LinearGradient
-              colors={["#4d4949ff", "#000000ff", "#21221cff"]}
+              colors={
+                isDarkMode
+                  ? ["#FFFFFF", "#FFFFFF"]
+                  : ["#4d4949ff", "#000000ff", "#21221cff"]
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               className="rounded-3xl p-8 shadow-2xl"
@@ -313,10 +308,19 @@ export default function HomeScreen() {
               {/* Card Top Section */}
               <View className="flex-row justify-between items-start mb-6">
                 <View>
-                  <Text className="text-white text-xs opacity-70 mb-1">
+                  <Text
+                    style={{
+                      color: isDarkMode ? "black" : "white",
+                      opacity: 0.7,
+                    }}
+                    className="text-xs mb-1"
+                  >
                     Balance
                   </Text>
-                  <Text className="text-white text-3xl font-bold">
+                  <Text
+                    style={{ color: isDarkMode ? "black" : "white" }}
+                    className="text-3xl font-bold"
+                  >
                     {visible ? formatAmount(balance) : "••••••"}
                   </Text>
                 </View>
@@ -324,7 +328,7 @@ export default function HomeScreen() {
                   <Ionicons
                     name={visible ? "eye-off" : "eye"}
                     size={22}
-                    color="white"
+                    color={isDarkMode ? "black" : "white"}
                   />
                 </TouchableOpacity>
               </View>
@@ -336,7 +340,10 @@ export default function HomeScreen() {
 
               {/* Card Number */}
               <View className="mb-6">
-                <Text className="text-white text-lg font-mono tracking-widest">
+                <Text
+                  style={{ color: isDarkMode ? "black" : "white" }}
+                  className="text-lg font-mono tracking-widest"
+                >
                   {visible
                     ? formatCardNumber(accountNumber)
                     : "•••• •••• •••• ••••"}
@@ -346,18 +353,40 @@ export default function HomeScreen() {
               {/* Card Bottom Section */}
               <View className="flex-row justify-between items-end">
                 <View>
-                  <Text className="text-white/70 text-xs mb-1">
+                  <Text
+                    style={{
+                      color: isDarkMode
+                        ? "rgba(0,0,0,0.7)"
+                        : "rgba(255,255,255,0.7)",
+                    }}
+                    className="text-xs mb-1"
+                  >
                     Card Holder
                   </Text>
-                  <Text className="text-white text-sm font-semibold">
+                  <Text
+                    style={{ color: isDarkMode ? "black" : "white" }}
+                    className="text-sm font-semibold"
+                  >
                     {visible
                       ? formatCardName(user?.username || "User")
                       : "••••••••••••"}
                   </Text>
                 </View>
                 <View>
-                  <Text className="text-white/70 text-xs mb-1">Expires</Text>
-                  <Text className="text-white text-sm font-semibold">
+                  <Text
+                    style={{
+                      color: isDarkMode
+                        ? "rgba(0,0,0,0.7)"
+                        : "rgba(255,255,255,0.7)",
+                    }}
+                    className="text-xs mb-1"
+                  >
+                    Expires
+                  </Text>
+                  <Text
+                    style={{ color: isDarkMode ? "black" : "white" }}
+                    className="text-sm font-semibold"
+                  >
                     {new Date().getMonth() + 1}/{new Date().getFullYear() + 5}
                   </Text>
                 </View>
@@ -370,7 +399,7 @@ export default function HomeScreen() {
               </View>
             </LinearGradient>
           </View>
-        </LinearGradient>
+        </View>
 
         {/* Quick Actions */}
         <View className="flex-row justify-around px-5 mt-6 mb-5">

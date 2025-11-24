@@ -344,7 +344,7 @@ export default function TransferScreen() {
       >
         {/* FROM Account Card */}
         <View
-          className="mx-4 mb-6 p-5 rounded-2xl mt-6"
+          className="mx-4 mb-6 p-5 rounded-2xl"
           style={{
             backgroundColor: colors.primary,
             shadowColor: colors.primary,
@@ -739,7 +739,7 @@ export default function TransferScreen() {
         {/* Transfer Button */}
         <View className="mx-4 mb-6">
           <TouchableOpacity
-            className="p-4 rounded-xl flex-row justify-center items-center"
+            className="py-6 rounded-full flex-row items-center justify-center"
             style={{
               backgroundColor:
                 isValidAmount &&

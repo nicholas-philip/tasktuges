@@ -117,16 +117,19 @@ export default function Login() {
 
   return (
     <SafeScreen>
-      <KeyboardAvoidingView className="flex-1 bg-white">
+      <KeyboardAvoidingView
+        className="flex-1"
+        style={{ backgroundColor: colors.background }}
+      >
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ================= HEADER ================= */}
+          {/* ================= HEADER - FIXED ================= */}
           <View
             className="px-7 pt-11 pb-9 w-full h-[250px]"
-            style={{ backgroundColor: colors.primary }}
+            style={{ backgroundColor: colors.headerBackground }}
           >
             <View className="flex-row items-center">
               <Image
@@ -134,15 +137,23 @@ export default function Login() {
                 className="w-14 h-14 mr-3"
                 resizeMode="contain"
               />
-              <Text className="text-3xl font-black text-white">SkyPay</Text>
+              <Text
+                className="text-3xl font-black"
+                style={{ color: colors.headerText }}
+              >
+                SkyPay
+              </Text>
             </View>
 
-            <Text className="text-3xl font-extrabold mt-6 text-white">
+            <Text
+              className="text-3xl font-extrabold mt-16"
+              style={{ color: colors.headerText }}
+            >
               {isLogin ? "Welcome Back" : "Create Account"}
             </Text>
 
             <Text
-              style={{ color: "rgba(255,255,255,0.9)" }}
+              style={{ color: colors.headerText, opacity: 0.9 }}
               className="text-base mt-2"
             >
               {isLogin
@@ -157,6 +168,8 @@ export default function Login() {
             style={{
               backgroundColor:
                 colors.authCard || colors.card || colors.background,
+              borderColor: colors.authCardBorder || colors.cardBorder,
+              borderWidth: 1,
               shadowColor: "#000",
               shadowOpacity: 0.12,
               shadowRadius: 16,
@@ -165,8 +178,17 @@ export default function Login() {
           >
             {/* Error */}
             {error && (
-              <View className="p-3 border border-red-500 bg-red-50 rounded-lg mb-4">
-                <Text className="text-red-600 text-sm">{error}</Text>
+              <View
+                className="p-3 rounded-lg mb-4"
+                style={{
+                  backgroundColor: colors.errorLight,
+                  borderColor: colors.error,
+                  borderWidth: 1,
+                }}
+              >
+                <Text style={{ color: colors.error }} className="text-sm">
+                  {error}
+                </Text>
               </View>
             )}
 
@@ -185,11 +207,11 @@ export default function Login() {
                 placeholder="Username"
                 value={username}
                 onChangeText={setUsername}
-                placeholderTextColor={colors.textTertiary || "#999"}
+                placeholderTextColor={colors.textTertiary}
                 style={{
-                  backgroundColor: colors.inputBackground || "#F5F5F5",
+                  backgroundColor: colors.inputBackground,
                   color: colors.text,
-                  borderColor: colors.inputBorder || "#E0E0E0",
+                  borderColor: colors.inputBorder,
                 }}
                 className="px-4 py-4 rounded-full text-base border mt-5"
               />
@@ -200,11 +222,11 @@ export default function Login() {
               placeholder="Enter your email"
               value={email}
               onChangeText={setEmail}
-              placeholderTextColor={colors.textTertiary || "#999"}
+              placeholderTextColor={colors.textTertiary}
               style={{
-                backgroundColor: colors.inputBackground || "#F5F5F5",
+                backgroundColor: colors.inputBackground,
                 color: colors.text,
-                borderColor: colors.inputBorder || "#E0E0E0",
+                borderColor: colors.inputBorder,
               }}
               className="px-4 py-4 rounded-full text-base border mt-5"
             />
@@ -212,8 +234,8 @@ export default function Login() {
             {/* Password */}
             <View
               style={{
-                backgroundColor: colors.inputBackground || "#F5F5F5",
-                borderColor: colors.inputBorder || "#E0E0E0",
+                backgroundColor: colors.inputBackground,
+                borderColor: colors.inputBorder,
               }}
               className="rounded-full px-4 py-0 border flex-row items-center mt-5"
             >
@@ -221,7 +243,7 @@ export default function Login() {
                 placeholder="Enter your password"
                 value={password}
                 onChangeText={setPassword}
-                placeholderTextColor={colors.textTertiary || "#999"}
+                placeholderTextColor={colors.textTertiary}
                 secureTextEntry={!showPassword}
                 style={{
                   color: colors.text,
@@ -232,7 +254,7 @@ export default function Login() {
                 <Ionicons
                   name={showPassword ? "eye-outline" : "eye-off-outline"}
                   size={20}
-                  color={colors.textTertiary || "#777"}
+                  color={colors.textTertiary}
                 />
               </TouchableOpacity>
             </View>
@@ -241,8 +263,8 @@ export default function Login() {
             {!isLogin && (
               <View
                 style={{
-                  backgroundColor: colors.inputBackground || "#F5F5F5",
-                  borderColor: colors.inputBorder || "#E0E0E0",
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.inputBorder,
                 }}
                 className="rounded-full px-4 py-0 border flex-row items-center mt-5"
               >
@@ -250,7 +272,7 @@ export default function Login() {
                   placeholder="Confirm your password"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  placeholderTextColor={colors.textTertiary || "#999"}
+                  placeholderTextColor={colors.textTertiary}
                   secureTextEntry={!showPassword}
                   style={{
                     color: colors.text,
@@ -271,9 +293,9 @@ export default function Login() {
                     style={{
                       backgroundColor: rememberMe
                         ? colors.primary
-                        : colors.inputBackground || "#F5F5F5",
+                        : colors.inputBackground,
                       borderWidth: rememberMe ? 0 : 1,
-                      borderColor: colors.inputBorder || "#E0E0E0",
+                      borderColor: colors.inputBorder,
                     }}
                     className="w-[18px] h-[18px] rounded justify-center items-center"
                   >
@@ -281,7 +303,7 @@ export default function Login() {
                       <Ionicons name="checkmark" size={12} color="#FFF" />
                     )}
                   </View>
-                  <Text style={{ color: colors.text }} className="text-sm ml-2">
+                  <Text style={{ color: colors.text }} className="text-l ml-2">
                     Remember me
                   </Text>
                 </TouchableOpacity>
@@ -295,7 +317,7 @@ export default function Login() {
                     style={{
                       color: colors.primary,
                     }}
-                    className="font-semibold text-sm"
+                    className="font-semibold text-l"
                   >
                     Forgot password?
                   </Text>
@@ -309,9 +331,7 @@ export default function Login() {
               activeOpacity={0.85}
               disabled={isLoading}
               style={{
-                backgroundColor: isLoading
-                  ? colors.border || "#DDD"
-                  : colors.primary || "#0052CC",
+                backgroundColor: isLoading ? colors.border : colors.primary,
               }}
               className="py-5 rounded-full items-center mt-6"
             >
@@ -328,13 +348,13 @@ export default function Login() {
             <View className="flex-row items-center my-6">
               <View
                 style={{
-                  backgroundColor: colors.separator || "#E0E0E0",
+                  backgroundColor: colors.separator,
                 }}
                 className="flex-1 h-px"
               />
               <Text
                 style={{
-                  color: colors.textTertiary || "#888",
+                  color: colors.textTertiary,
                 }}
                 className="mx-2.5"
               >
@@ -342,7 +362,7 @@ export default function Login() {
               </Text>
               <View
                 style={{
-                  backgroundColor: colors.separator || "#E0E0E0",
+                  backgroundColor: colors.separator,
                 }}
                 className="flex-1 h-px"
               />
@@ -352,7 +372,7 @@ export default function Login() {
             <View className="flex-row justify-center mb-2">
               <TouchableOpacity
                 style={{
-                  backgroundColor: colors.surface || "#F9F9F9",
+                  backgroundColor: colors.surface,
                 }}
                 className="p-4 rounded-full mx-1.5"
                 onPress={() =>
@@ -364,7 +384,7 @@ export default function Login() {
 
               <TouchableOpacity
                 style={{
-                  backgroundColor: colors.surface || "#F9F9F9",
+                  backgroundColor: colors.surface,
                 }}
                 className="p-4 rounded-full mx-1.5"
                 onPress={() =>
@@ -376,18 +396,14 @@ export default function Login() {
 
               <TouchableOpacity
                 style={{
-                  backgroundColor: colors.surface || "#F9F9F9",
+                  backgroundColor: colors.surface,
                 }}
                 className="p-4 rounded-full mx-1.5"
                 onPress={() =>
                   Alert.alert("Coming Soon", "Apple login coming soon!")
                 }
               >
-                <FontAwesomeIcon
-                  icon={faApple}
-                  size={22}
-                  color={colors.text || "#000"}
-                />
+                <FontAwesomeIcon icon={faApple} size={22} color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -405,9 +421,9 @@ export default function Login() {
             >
               <Text
                 style={{
-                  color: colors.textTertiary || "#666",
+                  color: colors.textSecondary,
                 }}
-                className="text-center text-sm"
+                className="text-center text-l"
               >
                 {isLogin
                   ? "Don't have an account? "

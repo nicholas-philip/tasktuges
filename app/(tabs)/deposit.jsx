@@ -295,13 +295,12 @@ export default function DepositScreen() {
   // ================== MAIN DEPOSIT FORM ==================
   return (
     <SafeScreen>
-      <StickyHeader title="Add Funds" showBack={true} />
-
       <KeyboardAvoidingView
-        style={{ backgroundColor: colors.background }}
-        className="flex-1"
+        style={{ backgroundColor: colors.background, flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
+        <StickyHeader title="Add Funds" showBack={true} />
+
         <ScrollView
           style={{ backgroundColor: colors.background }}
           className="flex-1"
@@ -480,7 +479,7 @@ export default function DepositScreen() {
           </View>
 
           {/* Deposit Button */}
-          <View className="mx-4 mb-6">
+          <View className="mx-4 mb-6" style={{ color: colors.text }}>
             <TouchableOpacity
               style={{
                 backgroundColor:
@@ -492,7 +491,7 @@ export default function DepositScreen() {
                     ? colors.textTertiary
                     : colors.success,
               }}
-              className="py-4 rounded-xl flex-row items-center justify-center"
+              className="py-6 rounded-full flex-row items-center justify-center"
               onPress={handleInitializeDeposit}
               disabled={
                 isInitializing ||
@@ -506,7 +505,7 @@ export default function DepositScreen() {
                 <>
                   <ActivityIndicator color="#fff" size="small" />
                   <Text
-                    style={{ color: "#fff" }}
+                    style={{ color: colors.text }}
                     className="font-bold text-lg ml-2"
                   >
                     Processing...

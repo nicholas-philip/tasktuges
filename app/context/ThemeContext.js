@@ -1,4 +1,4 @@
-// app/context/ThemeContext.js - ENHANCED
+// app/context/ThemeContext.js - FIXED
 import React, { createContext, useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColorScheme } from "react-native";
@@ -11,10 +11,10 @@ export const LIGHT_THEME = {
     // Base colors
     background: "#FFFFFF",
     surface: "#F9FAFB",
-    text: "#000000ff",
-    textSecondary: "#000000ff",
-    textTertiary: "#000000ff",
-    border: "#c8ccd4ff",
+    text: "#000000",
+    textSecondary: "#6B7280",
+    textTertiary: "#414141ff",
+    border: "#c8ccd4",
     separator: "#D1D5DB",
 
     // Primary colors
@@ -36,10 +36,12 @@ export const LIGHT_THEME = {
     inputBackground: "#F3F4F6",
     inputBorder: "#D1D5DB",
 
-    // Auth specific
+    // Auth specific - FIXED
     authBackground: "#FFFFFF",
     authCard: "#FFFFFF",
-    authCardBorder: "#ffffffff",
+    authCardBorder: "#E5E7EB",
+    headerBackground: "#000000ff", // Blue header
+    headerText: "#ffffffff",
   },
 };
 
@@ -47,13 +49,13 @@ export const DARK_THEME = {
   mode: "dark",
   colors: {
     // Base colors
-    background: "#07050eff",
-    surface: "#07050eff",
-    text: "#fdfdfdff",
-    textSecondary: "#ffffffff",
-    textTertiary: "#ffffffff",
-    border: "#504f4fff",
-    separator: "#ffffffff",
+    background: "#07050e",
+    surface: "#07050e",
+    text: "#fdfdfd",
+    textSecondary: "#9CA3AF",
+    textTertiary: "#c5c6c7ff",
+    border: "#504f4f",
+    separator: "#374151",
 
     // Primary colors
     primary: "#60A5FA",
@@ -68,16 +70,18 @@ export const DARK_THEME = {
     errorLight: "#7F1D1D",
 
     // Component colors
-    card: "#03030eff",
-    cardBorder: "#797474ff",
+    card: "#03030e",
+    cardBorder: "#797474",
     overlay: "rgba(0, 0, 0, 0.8)",
-    inputBackground: "#0c0b0bff",
-    inputBorder: "#1d1c1cff",
+    inputBackground: "#0c0b0b",
+    inputBorder: "#1d1c1c",
 
-    // Auth specific
-    authBackground: "#000000ff",
-    authCard: "#000000ff",
-    authCardBorder: "#000000ff",
+    // Auth specific - FIXED
+    authBackground: "#000000",
+    authCard: "#03030e",
+    authCardBorder: "#1d1c1c",
+    headerBackground: "#ffffffff", // Dark gray header
+    headerText: "#000000ff",
   },
 };
 

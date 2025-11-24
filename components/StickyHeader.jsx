@@ -15,30 +15,31 @@ const StickyHeader = ({ title, showBack = true, rightIcon = null }) => {
         backgroundColor: colors.background,
         borderBottomColor: colors.border,
       }}
-      className="flex-row justify-between items-center px-5 py-4 shadow-lg mt-2"
     >
-      {/* Back Button or Spacer */}
-      {showBack ? (
-        <TouchableOpacity onPress={() => router.back()} className="mt-6">
-          <Ionicons name="chevron-back" size={28} color={colors.primary} />
-        </TouchableOpacity>
-      ) : (
-        <View className="w-7" />
-      )}
+      <View className="flex-row justify-between items-center px-5 py-8 mt-4">
+        {/* Back Button or Spacer */}
+        {showBack ? (
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={28} color={colors.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View className="w-7" />
+        )}
 
-      {/* Title */}
-      <Text style={{ color: colors.text }} className="text-lg font-bold mt-6">
-        {title}
-      </Text>
+        {/* Title */}
+        <Text style={{ color: colors.text }} className="text-lg font-bold">
+          {title}
+        </Text>
 
-      {/* Right Icon or Spacer */}
-      {rightIcon ? (
-        <TouchableOpacity onPress={rightIcon.onPress}>
-          <Ionicons name={rightIcon.icon} size={28} color={colors.primary} />
-        </TouchableOpacity>
-      ) : (
-        <View className="w-7" />
-      )}
+        {/* Right Icon or Spacer */}
+        {rightIcon ? (
+          <TouchableOpacity onPress={rightIcon.onPress}>
+            <Ionicons name={rightIcon.icon} size={28} color={colors.primary} />
+          </TouchableOpacity>
+        ) : (
+          <View className="w-7" />
+        )}
+      </View>
     </View>
   );
 };

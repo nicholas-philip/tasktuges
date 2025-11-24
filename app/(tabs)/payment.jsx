@@ -808,7 +808,7 @@ export default function PaymentScreen() {
         {/* PAY BUTTON */}
         <View className="mx-4 mb-6">
           <TouchableOpacity
-            className="p-4 rounded-xl flex-row justify-center items-center"
+            className="py-6 rounded-full flex-row items-center justify-center"
             style={{
               backgroundColor:
                 isValidAmount &&
