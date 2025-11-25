@@ -238,7 +238,7 @@ const ProfileScreen = ({ navigation }) => {
           Error loading profile
         </Text>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => router.replace("(auth)")}
           style={{ backgroundColor: colors.primary }}
           className="px-6 py-3 rounded-xl"
         >

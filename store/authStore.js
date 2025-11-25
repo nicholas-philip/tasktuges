@@ -1,4 +1,3 @@
-// ================== store/authStore.js ==================
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -9,7 +8,7 @@ const API_URL =
 console.log("🔗 Auth API Base URL:", API_URL);
 
 // ✅ HELPER: Fetch with timeout
-const fetchWithTimeout = async (url, options = {}, timeout = 60000) => {
+const fetchWithTimeout = async (url, options = {}, timeout = 120000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
@@ -39,53 +38,96 @@ export const useAuthStore = create((set, get) => ({
   setError: (error) => set({ error }),
   clearError: () => set({ error: null }),
 
-  // ✅ LOGIN WITH BETTER ERROR HANDLING
-  login: async (email, password) => {
+  // ✅ REGISTER - WITH DETAILED DEBUGGING
+  register: async (username, email, password) => {
     set({ isLoading: true, error: null });
     try {
-      if (!email || !password) {
-        throw new Error("Email and password are required");
+      if (!username || username.length < 3) {
+        throw new Error("Username must be at least 3 characters");
+      }
+      if (!email || !email.includes("@")) {
+        throw new Error("Invalid email format");
+      }
+      if (!password || password.length < 6) {
+        throw new Error("Password must be at least 6 characters");
       }
 
+      console.log("📝 [REGISTER] Sending registration request...");
+      console.log(`   API_URL: ${API_URL}`);
+      console.log(`   Email: ${email}`);
+      console.log(`   Username: ${username}`);
+
+      const url = `${API_URL}/auth/register`;
+      console.log(`   Full URL: ${url}`);
+
+      const payload = { username, email, password };
+      console.log(`   Payload: ${JSON.stringify(payload)}`);
+
       const response = await fetchWithTimeout(
-        `${API_URL}/auth/login`,
+        url,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify(payload),
         },
-        60000
+        120000
       );
 
-      // ✅ FIX: Check content type before parsing
-      const contentType = response.headers.get("content-type");
+      console.log(`   Response Status: ${response.status}`);
+      console.log(`   Response Headers:`, {
+        contentType: response.headers.get("content-type"),
+      });
 
+      const contentType = response.headers.get("content-type");
       let data;
 
       if (contentType && contentType.includes("application/json")) {
         data = await response.json();
+        console.log(`   Response Data:`, JSON.stringify(data, null, 2));
       } else {
-        // Not JSON, likely HTML error page
         const _text = await response.text();
+        console.error(`   Response is not JSON:`, _text.slice(0, 200));
         throw new Error(
-          `Server returned ${response.status} - Check backend logs for errors: ${(_text || "").slice(0, 200)}`
+          `Server returned ${response.status} - Check backend logs: ${(_text || "").slice(0, 200)}`
         );
       }
 
       if (!response.ok) {
-        throw new Error(data?.message || `Login failed: ${response.status}`);
+        console.error(`   ❌ Response not OK:`, data?.message);
+        throw new Error(
+          data?.message || `Registration failed: ${response.status}`
+        );
       }
 
       if (!data?.user || !data?.token) {
+        console.error(`   ❌ Missing user or token in response`);
         throw new Error("Missing user or token in response");
       }
 
-      // DEV: Log verification code to console if backend included it (helps local testing)
+      console.log(`   ✅ Registration successful!`);
+      console.log(`   User:`, data.user);
+      console.log(`   Email Status:`, data.emailStatus);
+      console.log(`   Verification Code:`, data.verificationCode);
+
+      // ✅ LOG EMAIL STATUS
+      console.log("\n" + "═".repeat(80));
+      console.log("📧 [REGISTER] Email Status:");
+      console.log("═".repeat(80));
+      if (data.emailStatus?.sent) {
+        console.log("✅ Email sent successfully!");
+      } else {
+        console.log("❌ Email send failed:", data.emailStatus?.error);
+      }
+      console.log("═".repeat(80) + "\n");
+
+      // ✅ LOG VERIFICATION CODE
       if (data?.verificationCode) {
-        console.log(
-          "🛠️ [DEV] Received verificationCode from server:",
-          data.verificationCode
-        );
+        console.log("\n" + "═".repeat(80));
+        console.log("🔐 [REGISTER] Verification Code (Development):");
+        console.log("═".repeat(80));
+        console.log("CODE: " + data.verificationCode);
+        console.log("EXPIRES: 10 minutes");
+        console.log("═".repeat(80) + "\n");
       }
 
       await AsyncStorage.multiSet([
@@ -112,58 +154,89 @@ export const useAuthStore = create((set, get) => ({
           account: data.account,
         },
         verificationCode: data?.verificationCode || null,
+        emailStatus: data?.emailStatus || { sent: true },
       };
     } catch (error) {
       const message = error.message || "Network request failed";
+      console.error("\n" + "═".repeat(80));
+      console.error("❌ [REGISTER] FAILED!");
+      console.error("═".repeat(80));
+      console.error(`   Error: ${message}`);
+      console.error(`   Stack:`, error.stack);
+      console.error("═".repeat(80) + "\n");
+
       set({ isLoading: false, error: message });
       return { success: false, message };
     }
   },
 
-  // ✅ REGISTER
-  register: async (username, email, password) => {
+  // ✅ LOGIN WITH DETAILED DEBUGGING (SAME AS REGISTER)
+  login: async (email, password) => {
     set({ isLoading: true, error: null });
     try {
-      if (!username || username.length < 3) {
-        throw new Error("Username must be at least 3 characters");
-      }
-      if (!email || !email.includes("@")) {
-        throw new Error("Invalid email format");
-      }
-      if (!password || password.length < 6) {
-        throw new Error("Password must be at least 6 characters");
+      if (!email || !password) {
+        throw new Error("Email and password are required");
       }
 
+      console.log("🔐 [LOGIN] Sending login request...");
+      console.log(`   API_URL: ${API_URL}`);
+      console.log(`   Email: ${email}`);
+
+      const url = `${API_URL}/auth/login`;
+      console.log(`   Full URL: ${url}`);
+
+      const payload = { email, password };
+      console.log(`   Payload: ${JSON.stringify({ email, password: "***" })}`);
+
       const response = await fetchWithTimeout(
-        `${API_URL}/auth/register`,
+        url,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, email, password }),
+          body: JSON.stringify(payload),
         },
-        60000
+        120000
       );
+
+      console.log(`   Response Status: ${response.status}`);
+      console.log(`   Response Headers:`, {
+        contentType: response.headers.get("content-type"),
+      });
 
       const contentType = response.headers.get("content-type");
       let data;
 
       if (contentType && contentType.includes("application/json")) {
         data = await response.json();
+        console.log(`   Response Data:`, JSON.stringify(data, null, 2));
       } else {
         const _text = await response.text();
+        console.error(`   Response is not JSON:`, _text.slice(0, 200));
         throw new Error(
           `Server returned ${response.status} - Check backend logs: ${(_text || "").slice(0, 200)}`
         );
       }
 
       if (!response.ok) {
-        throw new Error(
-          data?.message || `Registration failed: ${response.status}`
-        );
+        console.error(`   ❌ Response not OK:`, data?.message);
+        throw new Error(data?.message || `Login failed: ${response.status}`);
       }
 
       if (!data?.user || !data?.token) {
+        console.error(`   ❌ Missing user or token in response`);
         throw new Error("Missing user or token in response");
+      }
+
+      console.log(`   ✅ Login successful!`);
+      console.log(`   User:`, data.user);
+      console.log(`   Email Verified:`, data.user.emailVerified);
+      console.log(`   Account:`, data.account);
+
+      if (data?.verificationCode) {
+        console.log(
+          "🛠️ [LOGIN] Received verificationCode from server:",
+          data.verificationCode
+        );
       }
 
       await AsyncStorage.multiSet([
@@ -183,15 +256,31 @@ export const useAuthStore = create((set, get) => ({
         error: null,
       });
 
+      console.log("\n" + "═".repeat(80));
+      console.log("✅ [LOGIN] SUCCESS!");
+      console.log("═".repeat(80));
+      console.log(`   User: ${data.user.username}`);
+      console.log(`   Email: ${data.user.email}`);
+      console.log(`   Email Verified: ${data.user.emailVerified}`);
+      console.log("═".repeat(80) + "\n");
+
       return {
         success: true,
         user: {
           ...data.user,
           account: data.account,
         },
+        verificationCode: data?.verificationCode || null,
       };
     } catch (error) {
       const message = error.message || "Network request failed";
+      console.error("\n" + "═".repeat(80));
+      console.error("❌ [LOGIN] FAILED!");
+      console.error("═".repeat(80));
+      console.error(`   Error: ${message}`);
+      console.error(`   Stack:`, error.stack);
+      console.error("═".repeat(80) + "\n");
+
       set({ isLoading: false, error: message });
       return { success: false, message };
     }
@@ -205,6 +294,8 @@ export const useAuthStore = create((set, get) => ({
         throw new Error("Email and verification code are required");
       }
 
+      console.log("✅ [VERIFY] Verifying email with code:", code);
+
       const response = await fetchWithTimeout(
         `${API_URL}/auth/verify-email`,
         {
@@ -212,7 +303,7 @@ export const useAuthStore = create((set, get) => ({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, code }),
         },
-        60000
+        120000
       );
 
       const contentType = response.headers.get("content-type");
@@ -242,12 +333,15 @@ export const useAuthStore = create((set, get) => ({
         error: null,
       });
 
+      console.log("✅ [VERIFY] Email verified successfully!");
+
       return {
         success: true,
         user: updatedUser,
       };
     } catch (error) {
       const message = error.message || "Email verification failed";
+      console.error("❌ [VERIFY] Error:", message);
       set({ isLoading: false, error: message });
       return { success: false, message };
     }
@@ -262,6 +356,8 @@ export const useAuthStore = create((set, get) => ({
         throw new Error("Email is required");
       }
 
+      console.log("🔄 [RESEND] Requesting new verification code...");
+
       const response = await fetchWithTimeout(
         `${API_URL}/auth/resend-verification`,
         {
@@ -271,7 +367,7 @@ export const useAuthStore = create((set, get) => ({
           },
           body: JSON.stringify({ email }),
         },
-        60000
+        120000
       );
 
       const contentType = response.headers.get("content-type");
@@ -287,12 +383,25 @@ export const useAuthStore = create((set, get) => ({
         throw new Error(data?.message || `Server error: ${response.status}`);
       }
 
-      // DEV: log verification code when provided by backend
+      // ✅ LOG EMAIL STATUS
+      console.log("\n" + "═".repeat(80));
+      console.log("📧 [RESEND] Email Status:");
+      console.log("═".repeat(80));
+      if (data.emailStatus?.sent) {
+        console.log("✅ Email sent successfully!");
+      } else {
+        console.log("❌ Email send failed:", data.emailStatus?.error);
+      }
+      console.log("═".repeat(80) + "\n");
+
+      // ✅ LOG VERIFICATION CODE
       if (data?.verificationCode) {
-        console.log(
-          "🛠️ [DEV] Resend returned verificationCode:",
-          data.verificationCode
-        );
+        console.log("\n" + "═".repeat(80));
+        console.log("🔐 [RESEND] Verification Code (Development):");
+        console.log("═".repeat(80));
+        console.log("CODE: " + data.verificationCode);
+        console.log("EXPIRES: 10 minutes");
+        console.log("═".repeat(80) + "\n");
       }
 
       set({ isLoading: false, error: null });
@@ -301,9 +410,11 @@ export const useAuthStore = create((set, get) => ({
         success: true,
         message: data?.message || "Verification code resent successfully",
         verificationCode: data?.verificationCode || null,
+        emailStatus: data?.emailStatus || { sent: true },
       };
     } catch (error) {
       let userMessage = error.message || "Failed to resend verification code";
+      console.error("❌ [RESEND] Error:", userMessage);
 
       set({ isLoading: false, error: userMessage });
       return { success: false, message: userMessage };
@@ -320,7 +431,7 @@ export const useAuthStore = create((set, get) => ({
           method: "GET",
           headers: get().getAuthHeaders(),
         },
-        60000
+        120000
       );
 
       const contentType = response.headers.get("content-type");
@@ -343,15 +454,18 @@ export const useAuthStore = create((set, get) => ({
       set({ user: data.user, account: data.account || null, isLoading: false });
       return { success: true, user: data.user, account: data.account };
     } catch (error) {
+      console.error("❌ [GET-ME] Error:", error.message);
       set({ isLoading: false, error: error.message });
       return { success: false, message: error.message };
     }
   },
 
-  // DEV: Fetch debug verification code from backend (only returns code when backend allows it)
+  // DEV: Fetch debug verification code from backend
   getDebugVerificationCode: async (email) => {
     try {
       if (!email) throw new Error("Email is required");
+
+      console.log("🛠️ [DEBUG] Fetching verification code for:", email);
 
       const response = await fetchWithTimeout(
         `${API_URL}/auth/debug-code?email=${encodeURIComponent(email)}`,
@@ -371,11 +485,20 @@ export const useAuthStore = create((set, get) => ({
         throw new Error(data?.message || `Server error: ${response.status}`);
       }
 
+      if (data?.verificationCode) {
+        console.log("\n" + "═".repeat(80));
+        console.log("🔐 [DEBUG] Verification Code Retrieved:");
+        console.log("═".repeat(80));
+        console.log("CODE: " + data.verificationCode);
+        console.log("═".repeat(80) + "\n");
+      }
+
       return {
         success: true,
         verificationCode: data?.verificationCode || null,
       };
     } catch (error) {
+      console.error("❌ [DEBUG] Error:", error.message);
       return { success: false, message: error.message };
     }
   },
@@ -414,6 +537,7 @@ export const useAuthStore = create((set, get) => ({
         return { success: false };
       }
     } catch (error) {
+      console.error("❌ [CHECK-AUTH] Error:", error.message);
       set({ isLoading: false, error: error.message });
       return { success: false, message: error.message };
     }
@@ -434,8 +558,10 @@ export const useAuthStore = create((set, get) => ({
         error: null,
       });
 
+      console.log("✅ [LOGOUT] User logged out successfully");
       return { success: true };
     } catch (error) {
+      console.error("❌ [LOGOUT] Error:", error.message);
       set({ isLoading: false, error: error.message });
       return { success: false, message: error.message };
     }
@@ -453,6 +579,7 @@ export const useAuthStore = create((set, get) => ({
 
       return { success: true, user: updatedUser };
     } catch (error) {
+      console.error("❌ [UPDATE-PROFILE] Error:", error.message);
       return { success: false, message: error.message };
     }
   },

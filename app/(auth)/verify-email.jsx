@@ -1,4 +1,3 @@
-// ================== app/(auth)/verify-email.jsx - WITH THEME ==================
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -17,11 +16,11 @@ import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/authStore";
 import SafeScreen from "../../components/SafeScreen";
-import { useTheme } from "../context/ThemeContext"; // ✅ IMPORT THEME
+import { useTheme } from "../context/ThemeContext";
 
 export default function VerifyEmail() {
   const router = useRouter();
-  const { colors } = useTheme(); // ✅ GET THEME
+  const { colors } = useTheme();
   const { email: paramEmail, code: paramCode } = useLocalSearchParams();
 
   const [code, setCode] = useState("");
@@ -29,6 +28,7 @@ export default function VerifyEmail() {
   const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const [email, setEmail] = useState(paramEmail || "");
+  const [emailStatus, setEmailStatus] = useState(null);
 
   const { isLoading, verifyEmail, resendVerificationCode, error, clearError } =
     useAuthStore();
@@ -67,7 +67,7 @@ export default function VerifyEmail() {
     }
   }, [user, router]);
 
-  // If a verification code was passed via params (dev mode), show it so the user can copy it
+  // If a verification code was passed via params (dev mode), show it
   useEffect(() => {
     if (paramCode) {
       Alert.alert(
@@ -84,7 +84,7 @@ export default function VerifyEmail() {
     }
   }, [paramCode]);
 
-  // DEV: attempt to fetch the verification code from server debug endpoint and log it to Metro console
+  // DEV: attempt to fetch the verification code from server debug endpoint
   useEffect(() => {
     let mounted = true;
     const tryFetchDebugCode = async () => {
@@ -173,6 +173,11 @@ export default function VerifyEmail() {
 
     console.log("📊 Resend result:", result);
 
+    // ✅ Display email status
+    if (result.emailStatus) {
+      setEmailStatus(result.emailStatus);
+    }
+
     if (result.success) {
       if (result.verificationCode) {
         Alert.alert(
@@ -201,7 +206,9 @@ export default function VerifyEmail() {
     setCode("");
     setEmail("");
     clearError();
-    router.replace("/(auth)");
+    setEmailStatus(null);
+    router.dismissAll();
+    router.replace("/(auth)/index");
   };
 
   return (
@@ -261,6 +268,58 @@ export default function VerifyEmail() {
                 </Text>
               </View>
             </View>
+
+            {/* Email Status Alert */}
+            {emailStatus && !emailStatus.sent && (
+              <View
+                className="rounded-lg px-4 py-3 mb-6 border"
+                style={{
+                  backgroundColor: colors.errorLight,
+                  borderColor: colors.error,
+                }}
+              >
+                <View className="flex-row items-center">
+                  <Ionicons
+                    name="alert-circle"
+                    size={20}
+                    color={colors.error}
+                  />
+                  <Text
+                    className="text-sm ml-3 flex-1"
+                    style={{ color: colors.error }}
+                  >
+                    📧 Email delivery failed:{" "}
+                    {emailStatus.error || "Unknown error"}. Code is shown below
+                    for development.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Email Status Success */}
+            {emailStatus && emailStatus.sent && (
+              <View
+                className="rounded-lg px-4 py-3 mb-6 border"
+                style={{
+                  backgroundColor: colors.successLight || "#E8F5E9",
+                  borderColor: colors.success || "#4CAF50",
+                }}
+              >
+                <View className="flex-row items-center">
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={20}
+                    color={colors.success || "#4CAF50"}
+                  />
+                  <Text
+                    className="text-sm ml-3 flex-1"
+                    style={{ color: colors.success || "#4CAF50" }}
+                  >
+                    ✅ Email sent successfully! Check your inbox.
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {/* Error Message */}
             {error && (
